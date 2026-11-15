@@ -1,18 +1,26 @@
 node_modules
-.env
-.env.local
 
 secrets.json
 SECRETS.js
 
 # Playwright browser profile session
 .twitter_user_data
+.linkedin_user_data
+.instagram_user_data
+.facebook_user_data
 last_error.png
+last_linkedin_error.png
+last_instagram_error.png
+last_facebook_error.png
 posted_articles.json
 generated_tweet_image.png
 daily_posting_status.json
 daily_runner.log
+omnichannel_posting_status.json
+omnichannel_runner.log
+hermes_memory.json
 
 # Local tooling & caches
 __pycache__/
 .claude/
+config.bat

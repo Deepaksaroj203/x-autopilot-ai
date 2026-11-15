@@ -1,5 +1,6 @@
 @echo off
 cd /d "%~dp0"
+set "PATH=C:\Users\acer\.local\nodejs;C:\Users\acer\.local\bin;%PATH%"
 title Omnichannel Social AI Auto-Poster Suite
 echo =====================================================================
 echo  Omnichannel Autonomous Social Suite (LinkedIn + Insta + FB + X)

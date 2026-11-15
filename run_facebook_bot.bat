@@ -1,5 +1,6 @@
 @echo off
 cd /d "%~dp0"
+set "PATH=C:\Users\acer\.local\nodejs;C:\Users\acer\.local\bin;%PATH%"
 title Facebook Autonomous Community Poster
 echo =====================================================================
 echo  Facebook Community & Page Auto-Poster (Zero API Costs)

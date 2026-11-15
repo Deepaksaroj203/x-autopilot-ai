@@ -20,7 +20,7 @@ if (!GEMINI_API_KEY) {
 const genAI = new GenAI.GoogleGenerativeAI(GEMINI_API_KEY);
 const USER_DATA_DIR = path.join(__dirname, ".twitter_user_data");
 
-async function postThreadViaBrowser(thread, imagePath = null) {
+async function postThreadViaBrowser(thread, imagePath = null, { interactive = false } = {}) {
   console.log("🌐 Launching Microsoft Edge browser...");
   const context = await chromium.launchPersistentContext(USER_DATA_DIR, {
     channel: "msedge",
@@ -43,6 +43,12 @@ async function postThreadViaBrowser(thread, imagePath = null) {
     const isLoggedIn = await loggedInIndicator.isVisible().catch(() => false);
 
     if (!isLoggedIn) {
+      if (!interactive) {
+        console.log("ℹ️ Twitter / X session not authenticated. Run setup_sessions.bat to connect. Skipping Twitter for this run.");
+        await context.close();
+        return { success: false, skipped: true, reason: "Awaiting one-time login in setup_sessions.bat" };
+      }
+
       console.log("\n============================================================");
       console.log("🔑 TWITTER / X LOGIN REQUIRED (ONE-TIME SETUP)");
       console.log("============================================================");
@@ -136,6 +142,7 @@ async function postThreadViaBrowser(thread, imagePath = null) {
     await page.waitForTimeout(5000);
 
     console.log(`🎉 Complete ${thread.length}-part EPFO compliance thread posted successfully to @EPFOCompliance!`);
+    return { success: true, platform: "twitter" };
 
   } catch (err) {
     console.error("❌ Browser automation error:", err.message);

@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const dns = require("dns");
 const https = require("https");
+const { runOmnichannel } = require("./omnichannel_runner");
 const { executePostingWorkflow } = require("./browser_poster");
 
 const STATUS_FILE = path.join(__dirname, "daily_posting_status.json");
@@ -150,7 +151,7 @@ function evaluateSlot(status, hours, minutes) {
 async function runDailyScheduler(forceSlot = null) {
   const { dateStr, hours, minutes } = getIstTime();
   log(`================================================================`);
-  log(`⏰ EPFO Twitter Daily Runner: ${dateStr} ${hours}:${String(minutes).padStart(2, "0")} IST`);
+  log(`⏰ EPFO Omnichannel Social Daily Runner: ${dateStr} ${hours}:${String(minutes).padStart(2, "0")} IST`);
   log(`================================================================`);
 
   let status = loadStatus();
@@ -160,8 +161,8 @@ async function runDailyScheduler(forceSlot = null) {
     log(`📅 Initializing fresh daily posting tracking for ${dateStr}...`);
     status = {
       date: dateStr,
-      morning: { done: false, postedAt: null, headline: null, url: null },
-      evening: { done: false, postedAt: null, headline: null, url: null }
+      morning: { done: false, postedAt: null, headline: null, url: null, platforms: {} },
+      evening: { done: false, postedAt: null, headline: null, url: null, platforms: {} }
     };
     saveStatus(status);
   }
@@ -186,7 +187,7 @@ async function runDailyScheduler(forceSlot = null) {
     process.exit(1);
   }
 
-  // Execute posting with up to 3 retries on transient errors
+  // Execute omnichannel posting with up to 3 retries on transient errors
   const maxRetries = 3;
   let attempt = 0;
   let postedResult = null;
@@ -194,8 +195,8 @@ async function runDailyScheduler(forceSlot = null) {
   while (attempt < maxRetries && !postedResult) {
     attempt++;
     try {
-      log(`🚀 Executing ${targetSlot.toUpperCase()} 3-part thread workflow (Attempt ${attempt}/${maxRetries})...`);
-      postedResult = await executePostingWorkflow();
+      log(`🚀 Executing ${targetSlot.toUpperCase()} Omnichannel Social syndication (Attempt ${attempt}/${maxRetries})...`);
+      postedResult = await runOmnichannel({ platforms: ["twitter", "linkedin", "instagram", "facebook"] });
     } catch (err) {
       log(`⚠️ Attempt ${attempt} failed: ${err.message}`);
       if (attempt < maxRetries) {
@@ -205,18 +206,20 @@ async function runDailyScheduler(forceSlot = null) {
     }
   }
 
-  if (postedResult) {
+  if (postedResult && postedResult.success) {
     status[targetSlot] = {
       done: true,
       postedAt: new Date().toISOString(),
       headline: postedResult.headline,
       source: postedResult.source,
-      url: postedResult.resourceUrl
+      url: postedResult.resourceUrl,
+      platforms: postedResult.results
     };
     saveStatus(status);
-    log(`🎉 SUCCESS: ${targetSlot.toUpperCase()} thread published to @EPFOCompliance!`);
+    log(`🎉 SUCCESS: ${targetSlot.toUpperCase()} slot published across social media syndication!`);
     log(`📌 Headline: "${postedResult.headline}"`);
     log(`🔗 Promoted URL: ${postedResult.resourceUrl}`);
+    log(`📊 Platform Summary: ${JSON.stringify(postedResult.results, null, 2)}`);
   } else {
     log(`❌ Failed to post ${targetSlot.toUpperCase()} thread after ${maxRetries} attempts.`);
     process.exit(1);

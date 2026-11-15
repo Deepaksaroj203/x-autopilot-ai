@@ -23,8 +23,9 @@ const USER_DATA_DIR = path.join(__dirname, ".facebook_user_data");
  * Publishes a post to Facebook
  * @param {string} postText - Text copy formatted for Facebook
  * @param {string|null} imagePath - Path to 1200x630 visual card
+ * @param {Object} options - Automation execution options
  */
-async function postToFacebook(postText, imagePath = null) {
+async function postToFacebook(postText, imagePath = null, { interactive = false } = {}) {
   console.log("🌐 Launching browser for Facebook automation...");
   let context;
   try {
@@ -64,6 +65,12 @@ async function postToFacebook(postText, imagePath = null) {
     const isLoggedIn = await loggedInIndicator.isVisible().catch(() => false);
 
     if (!isLoggedIn) {
+      if (!interactive) {
+        console.log("ℹ️ Facebook session not authenticated. Run setup_sessions.bat to connect. Skipping Facebook for this run.");
+        await context.close();
+        return { success: false, skipped: true, reason: "Awaiting one-time login in setup_sessions.bat" };
+      }
+
       console.log("\n============================================================");
       console.log("🔑 FACEBOOK LOGIN REQUIRED (ONE-TIME SETUP)");
       console.log("============================================================");
@@ -147,7 +154,7 @@ async function postToFacebook(postText, imagePath = null) {
 /**
  * Execute full autonomous Facebook workflow
  */
-async function executeFacebookWorkflow() {
+async function executeFacebookWorkflow({ interactive = true } = {}) {
   console.log("\n============================================================");
   console.log("🚀 INITIATING AUTONOMOUS FACEBOOK COMMUNITY OUTREACH RUNNER");
   console.log("============================================================\n");
@@ -168,7 +175,7 @@ async function executeFacebookWorkflow() {
     categoryBadge: "COMMUNITY ADVISORY",
   });
 
-  return await postToFacebook(content.facebook, cardPath);
+  return await postToFacebook(content.facebook, cardPath, { interactive });
 }
 
 if (require.main === module) {

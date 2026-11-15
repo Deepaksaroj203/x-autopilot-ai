@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
+    "start": "node init && node index.js",
     "daily": "node daily_runner.js",
     "post:browser": "node browser_poster.js"
   },

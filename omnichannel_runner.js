@@ -102,9 +102,14 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
         source: content.source,
         pubDate: content.pubDate,
       });
-      await postToLinkedIn(content.linkedin, cardPath);
-      results.linkedin = "SUCCESS";
-      log("✅ LinkedIn publication complete.");
+      const res = await postToLinkedIn(content.linkedin, cardPath, { interactive: false });
+      if (res && res.skipped) {
+        results.linkedin = "SKIPPED: " + res.reason;
+        log(`ℹ️ LinkedIn skipped: ${res.reason}`);
+      } else {
+        results.linkedin = "SUCCESS";
+        log("✅ LinkedIn publication complete.");
+      }
     } catch (e) {
       log(`⚠️ LinkedIn failed: ${e.message}`);
       results.linkedin = "FAILED: " + e.message;
@@ -124,9 +129,14 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
         source: content.source,
         pubDate: content.pubDate,
       });
-      await postToInstagram(content.instagram, cardPath);
-      results.instagram = "SUCCESS";
-      log("✅ Instagram publication complete.");
+      const res = await postToInstagram(content.instagram, cardPath, { interactive: false });
+      if (res && res.skipped) {
+        results.instagram = "SKIPPED: " + res.reason;
+        log(`ℹ️ Instagram skipped: ${res.reason}`);
+      } else {
+        results.instagram = "SUCCESS";
+        log("✅ Instagram publication complete.");
+      }
     } catch (e) {
       log(`⚠️ Instagram failed: ${e.message}`);
       results.instagram = "FAILED: " + e.message;
@@ -146,9 +156,14 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
         source: content.source,
         pubDate: content.pubDate,
       });
-      await postToFacebook(content.facebook, cardPath);
-      results.facebook = "SUCCESS";
-      log("✅ Facebook publication complete.");
+      const res = await postToFacebook(content.facebook, cardPath, { interactive: false });
+      if (res && res.skipped) {
+        results.facebook = "SKIPPED: " + res.reason;
+        log(`ℹ️ Facebook skipped: ${res.reason}`);
+      } else {
+        results.facebook = "SUCCESS";
+        log("✅ Facebook publication complete.");
+      }
     } catch (e) {
       log(`⚠️ Facebook failed: ${e.message}`);
       results.facebook = "FAILED: " + e.message;
@@ -168,9 +183,14 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
         source: content.source,
         pubDate: content.pubDate,
       });
-      await postThreadViaBrowser(content.twitter, cardPath);
-      results.twitter = "SUCCESS";
-      log("✅ Twitter / X publication complete.");
+      const res = await postThreadViaBrowser(content.twitter, cardPath, { interactive: false });
+      if (res && res.skipped) {
+        results.twitter = "SKIPPED: " + res.reason;
+        log(`ℹ️ Twitter / X skipped: ${res.reason}`);
+      } else {
+        results.twitter = "SUCCESS";
+        log("✅ Twitter / X publication complete.");
+      }
     } catch (e) {
       log(`⚠️ Twitter / X failed: ${e.message}`);
       results.twitter = "FAILED: " + e.message;
@@ -189,7 +209,13 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
   } catch (_) {}
 
   log(`🎉 Omnichannel run completed. Summary: ${JSON.stringify(results)}`);
-  return true;
+  return {
+    success: true,
+    headline: content.headline,
+    source: content.source,
+    resourceUrl: content.resourceUrl,
+    results,
+  };
 }
 
 // Parse command line flags: --platforms=all or --platforms=linkedin,instagram

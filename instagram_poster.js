@@ -23,8 +23,10 @@ const USER_DATA_DIR = path.join(__dirname, ".instagram_user_data");
  * Publishes an image post + caption to Instagram
  * @param {string} captionText - Text caption formatted for Instagram
  * @param {string} imagePath - Required path to 1080x1080 image card
+ * @param {Object} [opts]
+ * @param {boolean} [opts.interactive=false]
  */
-async function postToInstagram(captionText, imagePath) {
+async function postToInstagram(captionText, imagePath, { interactive = false } = {}) {
   if (!imagePath || !fs.existsSync(imagePath)) {
     throw new Error("Instagram requires an image file for feed publication.");
   }
@@ -69,12 +71,19 @@ async function postToInstagram(captionText, imagePath) {
     const isLoggedIn = await loggedInIndicator.isVisible().catch(() => false);
 
     if (!isLoggedIn) {
+      if (!interactive) {
+        console.log("ℹ️ Instagram session not authenticated. Run setup_sessions.bat to connect. Skipping Instagram for this run.");
+        await context.close();
+        return { success: false, skipped: true, reason: "Awaiting one-time login in setup_sessions.bat" };
+      }
+
       console.log("\n============================================================");
       console.log("🔑 INSTAGRAM LOGIN REQUIRED (ONE-TIME SETUP)");
       console.log("============================================================");
       console.log("Please log into your Instagram profile in the opened window.");
       console.log("⏳ Session cookies will be preserved permanently in .instagram_user_data...\n");
 
+      await page.goto("https://www.instagram.com/accounts/login/", { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
       await loggedInIndicator.waitFor({ state: "visible", timeout: 600000 });
       await page.waitForTimeout(4000);
       console.log("✅ Instagram Login confirmed! Session saved.\n");

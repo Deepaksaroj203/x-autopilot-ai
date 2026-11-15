@@ -23,8 +23,10 @@ const USER_DATA_DIR = path.join(__dirname, ".linkedin_user_data");
  * Publishes a thought-leadership post to LinkedIn
  * @param {string} postText - Text copy formatted for LinkedIn
  * @param {string|null} imagePath - Path to 1200x628 or 1080x1080 visual card
+ * @param {Object} [opts]
+ * @param {boolean} [opts.interactive=false]
  */
-async function postToLinkedIn(postText, imagePath = null) {
+async function postToLinkedIn(postText, imagePath = null, { interactive = false } = {}) {
   console.log("🌐 Launching browser for LinkedIn automation...");
   let context;
   try {
@@ -56,6 +58,12 @@ async function postToLinkedIn(postText, imagePath = null) {
     const isLoggedIn = await loggedInIndicator.isVisible().catch(() => false);
 
     if (!isLoggedIn) {
+      if (!interactive) {
+        console.log("ℹ️ LinkedIn session not authenticated. Run setup_sessions.bat to connect. Skipping LinkedIn for this run.");
+        await context.close();
+        return { success: false, skipped: true, reason: "Awaiting one-time login in setup_sessions.bat" };
+      }
+
       console.log("\n============================================================");
       console.log("🔑 LINKEDIN LOGIN REQUIRED (ONE-TIME SETUP)");
       console.log("============================================================");
