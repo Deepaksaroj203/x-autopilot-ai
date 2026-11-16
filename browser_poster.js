@@ -106,33 +106,44 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
     // 2. Chained Tweets (Tweet 2 through Tweet N) to form the full thread
     for (let i = 1; i < thread.length; i++) {
       console.log(`➕ Clicking 'Add post' to compose Tweet ${i + 1}/${thread.length}...`);
-      const addBtn = page.locator('button[data-testid="addButton"]').last();
-      await addBtn.waitFor({ state: "visible", timeout: 12000 });
-      await addBtn.click({ force: true });
-      await page.waitForTimeout(1500);
+      const countBefore = await page.locator('div[data-testid*="tweetTextarea"][role="textbox"]').count();
+      const addBtn = page.locator('button[data-testid="addButton"], button[aria-label="Add post"], button[aria-label*="Add"]').last();
+      
+      if (await addBtn.isVisible({ timeout: 6000 }).catch(() => false)) {
+        await addBtn.click({ force: true });
+        // Wait until new textarea actually spawns in the DOM
+        await page.waitForFunction((c) => {
+          return document.querySelectorAll('div[data-testid*="tweetTextarea"][role="textbox"]').length > c;
+        }, countBefore, { timeout: 8000 }).catch(() => null);
+      }
 
-      const nextTextarea = page.locator('div[data-testid*="tweetTextarea"][role="textbox"]').last();
-      await nextTextarea.scrollIntoViewIfNeeded();
-      await nextTextarea.click({ force: true });
-      await page.waitForTimeout(500);
-      await page.keyboard.insertText(thread[i]);
-      await page.waitForTimeout(500);
-      await page.keyboard.press("Escape"); // Dismiss hashtag dropdown
-      await page.waitForTimeout(1000);
+      const countAfter = await page.locator('div[data-testid*="tweetTextarea"][role="textbox"]').count();
+      if (countAfter > countBefore) {
+        const nextTextarea = page.locator(`div[data-testid="tweetTextarea_${i}"], div[data-testid*="tweetTextarea"][role="textbox"]`).last();
+        await nextTextarea.scrollIntoViewIfNeeded();
+        await nextTextarea.click({ force: true });
+        await page.waitForTimeout(500);
+        await page.keyboard.insertText(thread[i]);
+        await page.waitForTimeout(500);
+        await page.keyboard.press("Escape"); // Dismiss hashtag dropdown
+        await page.waitForTimeout(1000);
+      } else {
+        console.warn(`⚠️ Could not spawn thread textarea ${i + 1}; skipping chained tweet to prevent character overflow.`);
+      }
     }
 
-    // 3. Publish the complete thread atomically via 'Post all'
-    console.log("⏳ Waiting for 'Post all' button to become enabled...");
-    const postAllBtn = page.locator('button[data-testid="tweetButton"]').first();
+    // 3. Publish the thread / post atomically
+    console.log("⏳ Waiting for Post button to become enabled...");
+    const postAllBtn = page.locator('button[data-testid="tweetButton"], button:has-text("Post all"), button:has-text("Post")').first();
     await postAllBtn.waitFor({ state: "visible", timeout: 10000 });
 
-    // Ensure the button is active and not aria-disabled
+    // Wait for active state
     await page.waitForFunction(() => {
       const btn = document.querySelector('button[data-testid="tweetButton"]');
       return btn && btn.getAttribute("aria-disabled") !== "true" && !btn.disabled;
-    }, { timeout: 25000 });
+    }, { timeout: 15000 }).catch(() => {});
 
-    console.log("🚀 Clicking 'Post all' to publish full thread...");
+    console.log("🚀 Clicking Post button to publish full thread...");
     await postAllBtn.click({ force: true });
 
     // 4. Confirm submission: Wait for the composer textarea to detach (disappear)

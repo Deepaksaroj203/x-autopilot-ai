@@ -235,8 +235,8 @@ function buildTwitterThread(rawTwitter, article, meta, profile) {
 
   return list.slice(0, 3).map((tweet) => {
     let t = String(tweet).trim();
-    if (t.length > 270) {
-      t = t.slice(0, 265) + "...";
+    if (t.length > 260) {
+      t = t.slice(0, 255) + "...";
     }
     return t;
   });

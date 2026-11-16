@@ -26,8 +26,8 @@ const PLATFORMS = {
     dir: path.join(__dirname, ".instagram_user_data"),
     url: "https://www.instagram.com/accounts/login/",
     feedUrl: "https://www.instagram.com/",
-    loginPrompt: 'input[name="password"], a[href*="/accounts/login"]',
-    indicator: 'svg[aria-label="New post"], a[role="link"]:has-text("Create"), svg[aria-label="Home"], a[href*="/direct/inbox/"]'
+    loginPrompt: 'input[name="password"], a[href*="/accounts/login"], a[href*="/accounts/emailsignup/"], button:has-text("Log in"), button:has-text("Log In")',
+    indicator: 'svg[aria-label="New post"], svg[aria-label="New Post"], a[href*="/direct/inbox/"], svg[aria-label="Search"], svg[aria-label="Explore"], a[href*="/epfcompliance"]'
   },
   facebook: {
     name: "Facebook",
@@ -116,15 +116,34 @@ async function loginToPlatform(platformKey) {
 
   try {
     await page.goto(p.url, { waitUntil: "domcontentloaded", timeout: 35000 });
+    await page.waitForTimeout(2000);
 
-    const indicator = page.locator(p.indicator).first();
-    console.log("💡 Tip: When you see your profile or feed in Edge, you can also press Enter in this console window to confirm immediately.");
-    
-    // Auto-detect or user press Enter
-    const autoDetect = indicator.waitFor({ state: "visible", timeout: 600000 }).then(() => true).catch(() => false);
-    const manualConfirm = promptChoice("👉 Press Enter once logged in (or wait for auto-detection): ").then(() => true);
+    console.log("💡 Please log into your account in the opened Edge window.");
+    console.log("👉 The window will remain open. Once you are logged in and see your feed or profile, session cookies will be saved automatically.\n");
 
-    await Promise.race([autoDetect, manualConfirm]);
+    const startTime = Date.now();
+    const timeoutMs = 600000; // 10 minutes
+    let loggedIn = false;
+
+    while (Date.now() - startTime < timeoutMs) {
+      await page.waitForTimeout(2500);
+      const hasIndicator = await page.locator(p.indicator).first().isVisible().catch(() => false);
+      const hasLoginPrompt = await page.locator(p.loginPrompt).first().isVisible().catch(() => false);
+      const currentUrl = page.url();
+      const isOnLogin = currentUrl.includes("/login") || currentUrl.includes("/emailsignup");
+
+      if (hasIndicator && !hasLoginPrompt && !isOnLogin) {
+        console.log(`🎉 Detected active logged-in session on ${p.name}!`);
+        loggedIn = true;
+        break;
+      }
+    }
+
+    if (!loggedIn) {
+      console.log(`⚠️ Login timed out after 10 minutes.`);
+      return false;
+    }
+
     await page.waitForTimeout(3000);
 
     console.log(`\n🎉 SUCCESS: ${p.name} login confirmed! Session cookies preserved locally in:`);
