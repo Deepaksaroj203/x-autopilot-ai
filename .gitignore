@@ -1,4 +1,6 @@
 node_modules
+.env
+.env.local
 
 secrets.json
 SECRETS.js
@@ -21,6 +23,7 @@ omnichannel_runner.log
 hermes_memory.json
 
 # Local tooling & caches
+*.png
 __pycache__/
 .claude/
 config.bat

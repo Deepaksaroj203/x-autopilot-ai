@@ -18,20 +18,23 @@ const PLATFORMS = {
     dir: path.join(__dirname, ".linkedin_user_data"),
     url: "https://www.linkedin.com/login",
     feedUrl: "https://www.linkedin.com/feed/",
-    indicator: 'button.share-box-feed-entry__trigger, button:has-text("Start a post"), a[href*="/in/"], nav[aria-label="Primary"]'
+    loginPrompt: 'input[name="session_password"], a[href*="/login"]',
+    indicator: 'a[href*="/in/"], nav[aria-label="Primary"]'
   },
   instagram: {
     name: "Instagram",
     dir: path.join(__dirname, ".instagram_user_data"),
     url: "https://www.instagram.com/accounts/login/",
     feedUrl: "https://www.instagram.com/",
-    indicator: 'svg[aria-label="New post"], a[role="link"]:has-text("Create"), svg[aria-label="Home"], svg[aria-label="Direct"]'
+    loginPrompt: 'input[name="password"], a[href*="/accounts/login"]',
+    indicator: 'svg[aria-label="New post"], a[role="link"]:has-text("Create"), svg[aria-label="Home"], a[href*="/direct/inbox/"]'
   },
   facebook: {
     name: "Facebook",
     dir: path.join(__dirname, ".facebook_user_data"),
     url: "https://www.facebook.com/login",
     feedUrl: "https://www.facebook.com/",
+    loginPrompt: 'input[name="pass"], button[name="login"], form[data-testid="royal_login_form"]',
     indicator: 'div[aria-label*="What\'s on your mind"], div[role="button"]:has-text("What\'s on your mind"), div[aria-label="Account controls and settings"], svg[aria-label="Your profile"]'
   },
   twitter: {
@@ -39,6 +42,7 @@ const PLATFORMS = {
     dir: path.join(__dirname, ".twitter_user_data"),
     url: "https://x.com/i/flow/login",
     feedUrl: "https://x.com/home",
+    loginPrompt: 'a[href="/login"], [data-testid="loginButton"]',
     indicator: '[data-testid="SideNav_AccountSwitcher_Button"], a[data-testid="AppTabBar_Home_Link"], [data-testid="SideNav_NewTweet_Button"]'
   }
 };
@@ -71,9 +75,9 @@ async function checkSession(platformKey) {
     const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
     await page.goto(p.feedUrl, { waitUntil: "domcontentloaded", timeout: 25000 });
     await page.waitForTimeout(3000);
-    const indicator = page.locator(p.indicator).first();
-    const isLogged = await indicator.isVisible({ timeout: 5000 }).catch(() => false);
-    return isLogged;
+    const hasLoginPrompt = await page.locator(p.loginPrompt).first().isVisible({ timeout: 2500 }).catch(() => false);
+    const hasIndicator = await page.locator(p.indicator).first().isVisible({ timeout: 3500 }).catch(() => false);
+    return hasIndicator && !hasLoginPrompt;
   } catch (_) {
     return false;
   } finally {
@@ -114,7 +118,13 @@ async function loginToPlatform(platformKey) {
     await page.goto(p.url, { waitUntil: "domcontentloaded", timeout: 35000 });
 
     const indicator = page.locator(p.indicator).first();
-    await indicator.waitFor({ state: "visible", timeout: 600000 });
+    console.log("💡 Tip: When you see your profile or feed in Edge, you can also press Enter in this console window to confirm immediately.");
+    
+    // Auto-detect or user press Enter
+    const autoDetect = indicator.waitFor({ state: "visible", timeout: 600000 }).then(() => true).catch(() => false);
+    const manualConfirm = promptChoice("👉 Press Enter once logged in (or wait for auto-detection): ").then(() => true);
+
+    await Promise.race([autoDetect, manualConfirm]);
     await page.waitForTimeout(3000);
 
     console.log(`\n🎉 SUCCESS: ${p.name} login confirmed! Session cookies preserved locally in:`);
@@ -140,6 +150,39 @@ function promptChoice(query) {
 }
 
 async function main() {
+  const arg = (process.argv[2] || "").toLowerCase().replace(/^--?/, "");
+
+  if (arg === "status") {
+    console.log("============================================================");
+    console.log(" 🌐 CORPORATE COMPLIANCE — OMNICHANNEL SESSION STATUS");
+    console.log("============================================================");
+    for (const key of Object.keys(PLATFORMS)) {
+      process.stdout.write(`• ${PLATFORMS[key].name}: `);
+      const active = await checkSession(key);
+      console.log(active ? "✅ CONNECTED" : "❌ NOT LOGGED IN");
+    }
+    return;
+  }
+
+  if (arg === "linkedin" || arg === "instagram" || arg === "facebook" || arg === "twitter") {
+    await loginToPlatform(arg);
+    return;
+  }
+
+  if (arg === "all") {
+    for (const key of ["linkedin", "instagram", "facebook", "twitter"]) {
+      console.log(`\nChecking ${PLATFORMS[key].name}...`);
+      const active = await checkSession(key);
+      if (!active) {
+        console.log(`Connecting ${PLATFORMS[key].name}...`);
+        await loginToPlatform(key);
+      } else {
+        console.log(`✅ ${PLATFORMS[key].name} is already connected.`);
+      }
+    }
+    return;
+  }
+
   console.log("============================================================");
   console.log(" 🌐 CORPORATE COMPLIANCE — OMNICHANNEL SESSION MANAGER");
   console.log("============================================================");

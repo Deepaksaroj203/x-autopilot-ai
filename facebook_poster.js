@@ -9,6 +9,7 @@ const { chromium } = require("playwright");
 const GenAI = require("@google/generative-ai");
 const { generateOmnichannelPost } = require("./omnichannel_content");
 const { generateSocialCard } = require("./social_image_generator");
+const { getActiveProfile } = require("./config/config_loader");
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_API_KEY) {
@@ -85,11 +86,27 @@ async function postToFacebook(postText, imagePath = null, { interactive = false 
     }
 
     console.log("📝 Opening post composer...");
-    await page.goto("https://www.facebook.com/", { waitUntil: "domcontentloaded", timeout: 35000 });
+    const profile = getActiveProfile();
+    const targetUrl = process.env.FACEBOOK_PAGE_URL || profile?.facebookUrl || "https://www.facebook.com/";
+    console.log(`🌐 Navigating to Facebook: ${targetUrl}`);
+    await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 35000 });
     await page.waitForTimeout(3000);
 
-    // Click "What's on your mind?" trigger
-    const composerTrigger = page.locator('div[role="button"]:has-text("What\'s on your mind"), div[aria-label*="What\'s on your mind"]').first();
+    // Look for composer trigger (page profile or home feed)
+    let composerTrigger = page.locator(
+      'div[role="button"]:has-text("What\'s on your mind"), div[aria-label*="What\'s on your mind"], div[role="button"]:has-text("Write something"), div[role="button"]:has-text("Create post")'
+    ).first();
+
+    const canFindTrigger = await composerTrigger.isVisible({ timeout: 8000 }).catch(() => false);
+    if (!canFindTrigger && targetUrl !== "https://www.facebook.com/") {
+      console.log("ℹ️ Target page composer not directly visible; switching to main Facebook feed...");
+      await page.goto("https://www.facebook.com/", { waitUntil: "domcontentloaded", timeout: 35000 });
+      await page.waitForTimeout(3000);
+      composerTrigger = page.locator(
+        'div[role="button"]:has-text("What\'s on your mind"), div[aria-label*="What\'s on your mind"]'
+      ).first();
+    }
+
     await composerTrigger.waitFor({ state: "visible", timeout: 15000 });
     await composerTrigger.click();
     await page.waitForTimeout(2000);

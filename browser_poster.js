@@ -89,6 +89,8 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
     await textbox0.click({ force: true });
     await page.waitForTimeout(500);
     await page.keyboard.insertText(thread[0]);
+    await page.waitForTimeout(500);
+    await page.keyboard.press("Escape"); // Dismiss hashtag autocomplete dropdown
     await page.waitForTimeout(1000);
 
     // Attach image card to Tweet 1
@@ -98,22 +100,24 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
       await fileInput.setInputFiles(imagePath);
       console.log("⏳ Waiting for image upload preview to render...");
       await page.locator('[data-testid="attachments"], div[aria-label="Image"], button[aria-label="Remove media"]').first().waitFor({ state: "visible", timeout: 25000 }).catch(() => {});
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(3000);
     }
 
     // 2. Chained Tweets (Tweet 2 through Tweet N) to form the full thread
     for (let i = 1; i < thread.length; i++) {
       console.log(`➕ Clicking 'Add post' to compose Tweet ${i + 1}/${thread.length}...`);
-      const addBtn = page.locator('button[data-testid="addButton"]').first();
-      await addBtn.waitFor({ state: "visible", timeout: 10000 });
+      const addBtn = page.locator('button[data-testid="addButton"]').last();
+      await addBtn.waitFor({ state: "visible", timeout: 12000 });
       await addBtn.click({ force: true });
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(1500);
 
-      const nextTextarea = page.locator(`div[data-testid="tweetTextarea_${i}"]`).first();
-      await nextTextarea.waitFor({ state: "visible", timeout: 10000 });
+      const nextTextarea = page.locator('div[data-testid*="tweetTextarea"][role="textbox"]').last();
+      await nextTextarea.scrollIntoViewIfNeeded();
       await nextTextarea.click({ force: true });
       await page.waitForTimeout(500);
       await page.keyboard.insertText(thread[i]);
+      await page.waitForTimeout(500);
+      await page.keyboard.press("Escape"); // Dismiss hashtag dropdown
       await page.waitForTimeout(1000);
     }
 

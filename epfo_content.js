@@ -377,6 +377,7 @@ module.exports = {
   getSourceTier,
   scoreArticle,
   fetchTopImpressionEpfoNews,
+  getEpfoNewsPool: fetchTopImpressionEpfoNews,
   getPostedHistory,
   savePostedHeadline,
   generateEpfoTweet,

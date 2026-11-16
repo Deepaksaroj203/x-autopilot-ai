@@ -82,16 +82,20 @@ async function postToLinkedIn(postText, imagePath = null, { interactive = false 
     await page.goto("https://www.linkedin.com/feed/", { waitUntil: "domcontentloaded", timeout: 35000 });
     await page.waitForTimeout(2500);
 
-    // Click "Start a post" trigger
-    const startPostBtn = page.locator('button.share-box-feed-entry__trigger, button:has-text("Start a post")').first();
+    // Click "Start a post" trigger (Supports updated 2026 LinkedIn layout & native dialog)
+    const startPostBtn = page.locator(
+      'div[data-view-name="share-sharebox-focus"], div[aria-label="Start a post"], [role="button"]:has-text("Start a post"), p:has-text("Start a post"), button.share-box-feed-entry__trigger'
+    ).first();
     await startPostBtn.waitFor({ state: "visible", timeout: 15000 });
-    await startPostBtn.click();
-    await page.waitForTimeout(1500);
+    await startPostBtn.click({ force: true });
+    await page.waitForTimeout(2000);
 
-    // Wait for text editor modal
-    const textEditor = page.locator('div.editor-content [contenteditable="true"], div.ql-editor, div[role="textbox"]').first();
+    // Wait for text editor modal (Supports Tiptap ProseMirror & contenteditable)
+    const textEditor = page.locator(
+      'div.tiptap.ProseMirror, div[role="textbox"][contenteditable="true"], div.editor-content [contenteditable="true"]'
+    ).first();
     await textEditor.waitFor({ state: "visible", timeout: 15000 });
-    await textEditor.click();
+    await textEditor.click({ force: true });
     await page.waitForTimeout(500);
 
     // Type post text
@@ -103,25 +107,29 @@ async function postToLinkedIn(postText, imagePath = null, { interactive = false 
     if (imagePath && fs.existsSync(imagePath)) {
       console.log(`🖼️ Attaching visual infographic card: ${imagePath}`);
       try {
-        const fileChooserPromise = page.waitForEvent("filechooser", { timeout: 8000 }).catch(() => null);
+        const fileChooserPromise = page.waitForEvent("filechooser", { timeout: 10000 }).catch(() => null);
         
-        // Find media button or file input
-        const mediaBtn = page.locator('button[aria-label*="media"], button[aria-label*="photo"], button:has-text("Media")').first();
+        // Find media button
+        const mediaBtn = page.locator('button[aria-label="Media"], button:has-text("Media"), button[aria-label*="photo"]').first();
         if (await mediaBtn.isVisible().catch(() => false)) {
           await mediaBtn.click();
         }
 
-        const fileInput = page.locator('input[type="file"]').first();
-        if (await fileInput.count() > 0) {
+        const fileChooser = await fileChooserPromise;
+        if (fileChooser) {
+          await fileChooser.setFiles(imagePath);
+          console.log("✅ File uploaded via filechooser.");
+        } else {
+          const fileInput = page.locator('input[type="file"]').first();
           await fileInput.setInputFiles(imagePath);
-          await page.waitForTimeout(2500);
+        }
+        await page.waitForTimeout(3000);
 
-          // Click "Next" or "Done" on media dialog if present
-          const nextBtn = page.locator('button:has-text("Next"), button:has-text("Done")').first();
-          if (await nextBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
-            await nextBtn.click();
-            await page.waitForTimeout(1500);
-          }
+        // Click "Next" on media editor dialog
+        const nextBtn = page.locator('button:has-text("Next"), button:has-text("Done")').first();
+        if (await nextBtn.isVisible({ timeout: 6000 }).catch(() => false)) {
+          await nextBtn.click();
+          await page.waitForTimeout(2000);
         }
       } catch (mediaErr) {
         console.warn("⚠️ Media attachment fallback:", mediaErr.message);
@@ -130,9 +138,9 @@ async function postToLinkedIn(postText, imagePath = null, { interactive = false 
 
     // Click Post Button
     console.log("🚀 Publishing post to LinkedIn...");
-    const postSubmitBtn = page.locator('button.share-actions__primary-action, button:has-text("Post")').first();
-    await postSubmitBtn.waitFor({ state: "visible", timeout: 10000 });
-    await postSubmitBtn.click();
+    const postSubmitBtn = page.locator('button:has-text("Post"), button.share-actions__primary-action').first();
+    await postSubmitBtn.waitFor({ state: "visible", timeout: 15000 });
+    await postSubmitBtn.click({ force: true });
 
     await page.waitForTimeout(6000);
     console.log("🎉 Post successfully published to LinkedIn!");

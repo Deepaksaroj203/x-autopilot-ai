@@ -65,16 +65,18 @@ async function postToInstagram(captionText, imagePath, { interactive = false } =
     } catch (_) {}
 
     const loggedInIndicator = page.locator(
-      'svg[aria-label="New post"], a[role="link"]:has-text("Create"), svg[aria-label="Home"], svg[aria-label="Direct"]'
+      'svg[aria-label="New post"], svg[aria-label="Home"], a[href*="/direct/inbox/"], svg[aria-label="Direct"]'
     ).first();
 
-    const isLoggedIn = await loggedInIndicator.isVisible().catch(() => false);
+    const isLoginPage = await page.locator('input[name="password"], input[name="username"], button:has-text("Log in"), button:has-text("Log In")').first().isVisible({ timeout: 2000 }).catch(() => false);
+    const hasNavIndicator = await loggedInIndicator.isVisible().catch(() => false);
+    const isLoggedIn = hasNavIndicator && !isLoginPage;
 
     if (!isLoggedIn) {
       if (!interactive) {
-        console.log("ℹ️ Instagram session not authenticated. Run setup_sessions.bat to connect. Skipping Instagram for this run.");
+        console.log("ℹ️ Instagram session not authenticated. Run Connect_Social_Accounts.bat (Option 2) to log in. Skipping Instagram for this run.");
         await context.close();
-        return { success: false, skipped: true, reason: "Awaiting one-time login in setup_sessions.bat" };
+        return { success: false, skipped: true, reason: "Awaiting one-time login in Connect_Social_Accounts.bat" };
       }
 
       console.log("\n============================================================");
@@ -102,7 +104,7 @@ async function postToInstagram(captionText, imagePath, { interactive = false } =
     console.log("📸 Opening Instagram 'Create' dialog...");
     // Find Create button in navigation sidebar
     const createBtn = page.locator(
-      'svg[aria-label="New post"], svg[aria-label="New Post"], a[role="link"]:has-text("Create"), span:has-text("Create")'
+      'div[role="button"]:has(svg[aria-label="New post"]), svg[aria-label="New post"], svg[aria-label="New Post"], a[href="#"]:has-text("Create")'
     ).first();
 
     await createBtn.waitFor({ state: "visible", timeout: 15000 });

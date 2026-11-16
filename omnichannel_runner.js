@@ -96,11 +96,17 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
       const cardPath = await generateSocialCard({
         platform: "linkedin",
         headline: content.headline,
+        category: content.category,
+        categoryBadge: content.categoryBadge,
+        statNumber: content.statNumber,
+        statLabel: content.statLabel,
+        keyPoints: content.keyPoints,
         insight: content.insight,
         resourceTitle: content.resourceTitle,
         resourceUrl: content.resourceUrl,
         source: content.source,
         pubDate: content.pubDate,
+        trendingHashtags: content.trendingHashtags,
       });
       const res = await postToLinkedIn(content.linkedin, cardPath, { interactive: false });
       if (res && res.skipped) {
@@ -123,11 +129,17 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
       const cardPath = await generateSocialCard({
         platform: "instagram",
         headline: content.headline,
+        category: content.category,
+        categoryBadge: content.categoryBadge,
+        statNumber: content.statNumber,
+        statLabel: content.statLabel,
+        keyPoints: content.keyPoints,
         insight: content.insight,
         resourceTitle: content.resourceTitle,
         resourceUrl: content.resourceUrl,
         source: content.source,
         pubDate: content.pubDate,
+        trendingHashtags: content.trendingHashtags,
       });
       const res = await postToInstagram(content.instagram, cardPath, { interactive: false });
       if (res && res.skipped) {
@@ -150,11 +162,17 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
       const cardPath = await generateSocialCard({
         platform: "facebook",
         headline: content.headline,
+        category: content.category,
+        categoryBadge: content.categoryBadge,
+        statNumber: content.statNumber,
+        statLabel: content.statLabel,
+        keyPoints: content.keyPoints,
         insight: content.insight,
         resourceTitle: content.resourceTitle,
         resourceUrl: content.resourceUrl,
         source: content.source,
         pubDate: content.pubDate,
+        trendingHashtags: content.trendingHashtags,
       });
       const res = await postToFacebook(content.facebook, cardPath, { interactive: false });
       if (res && res.skipped) {
@@ -177,11 +195,17 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
       const cardPath = await generateSocialCard({
         platform: "twitter",
         headline: content.headline,
+        category: content.category,
+        categoryBadge: content.categoryBadge,
+        statNumber: content.statNumber,
+        statLabel: content.statLabel,
+        keyPoints: content.keyPoints,
         insight: content.insight,
         resourceTitle: content.resourceTitle,
         resourceUrl: content.resourceUrl,
         source: content.source,
         pubDate: content.pubDate,
+        trendingHashtags: content.trendingHashtags,
       });
       const res = await postThreadViaBrowser(content.twitter, cardPath, { interactive: false });
       if (res && res.skipped) {
