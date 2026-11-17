@@ -398,58 +398,98 @@ function mergeAllResources(dynamicList = []) {
   return Array.from(finalMap.values());
 }
 
-// Intelligent Search & Intent Matcher
-function matchCorporateResource(headline, allResources = null) {
+// Intelligent Search & Precision Semantic Matcher
+const STOPWORDS = new Set([
+  "how", "to", "what", "is", "the", "check", "your", "guide", "2026", "new",
+  "latest", "update", "big", "message", "for", "and", "or", "in", "from",
+  "with", "does", "mean", "can", "will", "are", "get", "all", "top", "online",
+  "complete", "rules", "rule", "step", "steps", "details", "know"
+]);
+
+function normalizeText(text) {
+  if (!text) return "";
+  return text
+    .toLowerCase()
+    .replace(/(?:₹|rs\.?|inr)\s?([\d,]+)/gi, (m, num) => num.replace(/,/g, ""))
+    .replace(/\b(\d+),(\d+)\b/g, "$1$2");
+}
+
+function matchCorporateResource(headline, allResources = null, contextText = "") {
   const resources = allResources || mergeAllResources(loadCachedResources());
-  const lower = (headline || "").toLowerCase();
+  const fullText = normalizeText(headline + " " + contextText);
+
+  // Extract distinctive numbers (e.g. 25000, 15000, 3000, 7q, 14b, 10d, 8a, rfe3)
+  const numbers = fullText.match(/\b(?:\d{4,6}|7q|14b|10d|8a|rfe-?\d+)\b/gi) || [];
+  const normalizedNumbers = numbers.map(n => n.replace(/[-_]/g, "").toLowerCase());
+
+  // High-value domain compound phrases
+  const KEY_PHRASES = [
+    "wage ceiling", "salary earners", "salary impact", "auto settlement", "auto-settlement",
+    "date of exit", "date of joining", "overlapping service", "overlap", "vishwas scheme",
+    "damages waiver", "penal damages", "penal interest", "aadhaar not verified",
+    "uan not member", "pensionable salary", "higher pension", "edli insurance",
+    "principal employer", "contractor liability", "digital life certificate", "dlc", "face auth"
+  ];
 
   let bestMatch = null;
   let highestScore = -1;
 
   for (const item of resources) {
     let score = 0;
+    const itemUrl = item.url || "";
+    const itemTitle = normalizeText(item.title || "");
+    let itemSlug = "";
+    try {
+      itemSlug = normalizeText(path.basename(new URL(itemUrl).pathname).replace(/[-_]/g, " "));
+    } catch (_) {}
+    const itemCombined = itemTitle + " " + itemSlug + " " + (item.solutionFacts || "");
 
-    // Check exact keywords
+    // 1. Number / Statutory Section Exact Match (Massive signal: 25000 -> 25000, 14b -> 14b)
+    for (const num of normalizedNumbers) {
+      if (itemCombined.includes(num)) {
+        score += 75;
+      }
+    }
+
+    // 2. Key Multi-Word Phrase Match
+    for (const phrase of KEY_PHRASES) {
+      if (fullText.includes(phrase) && itemCombined.includes(phrase)) {
+        score += 45;
+      }
+    }
+
+    // 3. Significant Title & Slug Tokens (Excluding noise stopwords)
+    const titleTokens = itemTitle.split(/[^a-z0-9]+/).filter(w => w.length > 3 && !STOPWORDS.has(w));
+    for (const t of titleTokens) {
+      if (fullText.includes(t)) {
+        score += 15;
+      }
+    }
+
+    const slugTokens = itemSlug.split(/[^a-z0-9]+/).filter(w => w.length > 3 && !STOPWORDS.has(w));
+    for (const s of slugTokens) {
+      if (fullText.includes(s)) {
+        score += 12;
+      }
+    }
+
+    // Curated keywords if present
     if (Array.isArray(item.keywords)) {
       for (const kw of item.keywords) {
-        const kwLower = kw.toLowerCase();
-        if (lower.includes(kwLower)) {
-          // Multi-word matches score much higher
-          score += kwLower.includes(" ") ? 30 : 15;
+        const kwLower = normalizeText(kw);
+        if (fullText.includes(kwLower)) {
+          score += kwLower.includes(" ") ? 35 : 18;
         }
       }
     }
 
-    // Check slug overlap
-    try {
-      const slug = path.basename(new URL(item.url).pathname).replace(/[-_]/g, " ").toLowerCase();
-      const slugWords = slug.split(" ").filter((w) => w.length > 3);
-      for (const sw of slugWords) {
-        if (lower.includes(sw)) {
-          score += 10;
-        }
-      }
-    } catch {
-      // ignore url parse error
+    // Blogs get priority over generic tool pages when content matches
+    if (itemUrl.includes("/blog/") && score > 0) {
+      score += 20;
     }
 
-    // Check title overlap
-    if (item.title) {
-      const titleWords = item.title.toLowerCase().split(/\s+/).filter((w) => w.length > 4);
-      for (const tw of titleWords) {
-        if (lower.includes(tw)) {
-          score += 8;
-        }
-      }
-    }
-
-    // Blogs get an inherent bonus over tools when keywords match
-    if (item.url.includes("/blog/") && score > 0) {
-      score += 12;
-    }
-
-    // Add baseline item priority weight
-    score += (item.priority || 0) * 0.1;
+    // Baseline priority
+    score += (item.priority || 0) * 0.05;
 
     if (score > highestScore) {
       highestScore = score;
@@ -457,12 +497,12 @@ function matchCorporateResource(headline, allResources = null) {
     }
   }
 
-  if (bestMatch && highestScore >= 15) {
+  if (bestMatch && highestScore >= 20) {
     return bestMatch;
   }
 
-  // Fallback to general tool or corporate compliance portal
-  return FALLBACK_RESOURCES[Math.floor(Math.random() * FALLBACK_RESOURCES.length)];
+  // Fallback to high priority tool or blog
+  return FALLBACK_RESOURCES[0];
 }
 
 module.exports = {
