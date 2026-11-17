@@ -17,11 +17,11 @@ try {
   // SECRETS.js is optional if environment variables are set
 }
 
-const APP_KEY = process.env.APP_KEY || fileSecrets.APP_KEY;
-const APP_SECRET = process.env.APP_SECRET || fileSecrets.APP_SECRET;
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN || fileSecrets.ACCESS_TOKEN;
-const ACCESS_SECRET = process.env.ACCESS_SECRET || fileSecrets.ACCESS_SECRET;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || fileSecrets.GEMINI_API_KEY;
+const APP_KEY = (process.env.APP_KEY || fileSecrets.APP_KEY || "").trim();
+const APP_SECRET = (process.env.APP_SECRET || fileSecrets.APP_SECRET || "").trim();
+const ACCESS_TOKEN = (process.env.ACCESS_TOKEN || fileSecrets.ACCESS_TOKEN || "").trim();
+const ACCESS_SECRET = (process.env.ACCESS_SECRET || fileSecrets.ACCESS_SECRET || "").trim();
+const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || fileSecrets.GEMINI_API_KEY || "").trim();
 
 if (!GEMINI_API_KEY) {
   console.error("Error: GEMINI_API_KEY is not set. Please provide it in .env or GitHub Secrets.");
@@ -67,6 +67,11 @@ async function sendThread(thread, imagePath = null) {
     console.error("Error sending thread to Twitter API:");
     if (error.data) {
       console.error(JSON.stringify(error.data, null, 2));
+      const hasCode89 = Array.isArray(error.data.errors) && error.data.errors.some(e => e.code === 89);
+      if (hasCode89) {
+        console.error("\n💡 DIAGNOSTIC: Twitter Error Code 89 indicates that APP_KEY, APP_SECRET, ACCESS_TOKEN, or ACCESS_SECRET in GitHub Secrets is invalid, expired, or has a typo.");
+        console.error("👉 Please update these 4 secrets in GitHub (Settings -> Secrets and variables -> Actions) with the working keys from your local .env file.\n");
+      }
     } else {
       console.error(error.message || error);
     }
