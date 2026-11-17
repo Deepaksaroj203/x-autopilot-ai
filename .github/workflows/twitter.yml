@@ -1,11 +1,11 @@
 name: Auto Tweet Using AI
 
-# Runs twice daily (09:30 AM IST and 05:30 PM IST)
+# Runs on every push to main, on schedule twice daily (09:30 AM IST & 05:30 PM IST), and on manual trigger
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: "0 4,12 * * *"
-
-  # Allows manual triggering from the Actions tab
   workflow_dispatch:
 
 jobs:
