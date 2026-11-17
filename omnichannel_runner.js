@@ -8,7 +8,7 @@ const dns = require("dns");
 const https = require("https");
 const GenAI = require("@google/generative-ai");
 
-const { generateOmnichannelPost } = require("./omnichannel_content");
+const { generateOmnichannelPost, savePostedHeadline } = require("./omnichannel_content");
 const { generateSocialCard } = require("./social_image_generator");
 const { postToLinkedIn } = require("./linkedin_poster");
 const { postToInstagram } = require("./instagram_poster");
@@ -221,7 +221,14 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
     }
   }
 
-  // Save run history
+  // Save run history and recorded posted headline
+  if (content && content.headline) {
+    try {
+      savePostedHeadline(content.headline, content.source);
+      log(`📝 Recorded headline "${content.headline}" to posted history.`);
+    } catch (_) {}
+  }
+
   const statusData = {
     lastRunAt: new Date().toISOString(),
     headline: content.headline,

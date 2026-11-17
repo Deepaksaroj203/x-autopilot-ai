@@ -45,7 +45,7 @@ async function generateContent(genAI) {
   }
 
   const selectedArticle = allArticles[0];
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
 
   const prompt = `You are a social media growth expert for ${profile.name} (${profile.accountHandle}).
 Write a high-converting, educational 3-part Twitter thread based on this headline:

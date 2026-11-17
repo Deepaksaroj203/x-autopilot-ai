@@ -2,7 +2,16 @@
 // Uses Google Gemini 2.5 Flash to generate platform-native formatting for each social network.
 
 const { getActiveProfile } = require("./config/config_loader");
-const { fetchTopImpressionEpfoNews } = require("./epfo_content");
+const {
+  fetchTopImpressionEpfoNews,
+  scoreArticle,
+  getPostedHistory,
+  savePostedHeadline
+} = require("./epfo_content");
+const {
+  syncCorporateResources,
+  matchCorporateResource
+} = require("./corporate_catalog");
 
 function detectArticleMetadata(article) {
   const text = ((article.title || "") + " " + (article.description || "")).toLowerCase();
@@ -62,7 +71,7 @@ function detectArticleMetadata(article) {
       "Expands mandatory social security coverage to millions of new workers",
       "Employers must prepare for revised payroll liability calculations"
     ];
-  } else if (text.includes("7q") || text.includes("14b") || text.includes("damage") || text.includes("penalty") || text.includes("ecr")) {
+  } else if (text.includes("7q") || text.includes("14b") || text.includes("damage") || text.includes("penalty") || text.includes("ecr") || text.includes("vishwas")) {
     category = "COMPLIANCE";
     categoryBadge = "STATUTORY PENALTY AUDIT";
     if (statNumber === "100%") { statNumber = "§§ 7Q & 14B"; statLabel = "Penal Damages & Interest"; }
@@ -81,50 +90,90 @@ function detectArticleMetadata(article) {
  * @param {Object} genAI - Initialized GoogleGenerativeAI instance
  * @param {'linkedin'|'instagram'|'facebook'|'twitter'|'all'} targetPlatform
  */
-async function generateOmnichannelPost(genAI, targetPlatform = "linkedin") {
+async function generateOmnichannelPost(genAI, targetPlatform = "all") {
   const profile = getActiveProfile();
   let article = null;
 
-  // 1. Ingest verified regulatory or niche pool
+  // 1. Ingest verified regulatory news and filter out already posted stories
   if (profile.id === "epfo") {
     try {
       const pool = await fetchTopImpressionEpfoNews();
-      if (pool && pool.length > 0) {
-        article = pool[Math.floor(Math.random() * pool.length)];
+      const history = getPostedHistory();
+      const postedSet = new Set(history.map((h) => (h.headline || "").toLowerCase().trim()));
+
+      const scored = pool
+        .map(scoreArticle)
+        .filter((a) => !postedSet.has((a.title || "").toLowerCase().trim()))
+        .sort((a, b) => b.score - a.score);
+
+      if (scored.length > 0) {
+        // Pick the top scoring unposted candidate
+        article = scored[0];
+        console.log(`🎯 Omnichannel selected top unposted story: [Score: ${article.score}] ${article.title}`);
+      } else if (pool.length > 0) {
+        article = pool[0];
       }
     } catch (e) {
       console.warn("⚠️ Error fetching EPFO news pool, using fallback:", e.message);
     }
   }
 
-  // Fallback to profile feeds or default
+  // Fallback if no pool item found
   if (!article) {
     article = {
-      title: `${profile.name}: Statutory Compliance Guidelines & Advisory`,
+      title: "EPFO Scrutiny on Belated ECR Remittances & Sections 7Q & 14B Penal Damages",
       description: "Critical employer compliance updates, statutory filing obligations, and workforce security norms.",
       link: profile.websiteUrl,
-      source: "Official Ministry / Gazette Release",
+      source: "Official Gazette / PIB",
       pubDate: new Date().toISOString()
     };
   }
 
   const meta = detectArticleMetadata(article);
 
+  // Synchronize live website catalog and match the exact relatable blog/tool guide
+  let resource = {
+    title: "Statutory Compliance Guides & Calculators",
+    url: profile.websiteUrl,
+    cta: "Explore full compliance guide & calculators:",
+    solutionFacts: "Ensure timely monthly ECR remittance by the 15th to avoid penal interest under Section 7Q (12% p.a.) and damages under Section 14B. Correct member profile & exit dates promptly via Unified Portal."
+  };
+
+  try {
+    const liveResources = await syncCorporateResources();
+    const matched = matchCorporateResource(article.title + " " + (article.description || ""), liveResources);
+    if (matched && matched.url) {
+      resource = matched;
+    }
+  } catch (err) {
+    console.warn("⚠️ Resource matching fallback:", err.message);
+  }
+
+  console.log(`🔗 Omnichannel Matched Resource: ${resource.title} -> ${resource.url}`);
+
   const model = genAI.getGenerativeModel({
-    model: "gemini-3.5-flash-lite",
+    model: "gemini-3.8-flash",
     generationConfig: { responseMimeType: "application/json" }
   });
 
-  const prompt = `You are a senior social media growth director and corporate compliance strategist for "${profile.name}" (${profile.websiteUrl}).
+  const prompt = `You are a senior social media director and corporate compliance strategist for "${profile.name}" (${profile.websiteUrl}).
 Analyze this official regulatory news release:
 Headline: "${article.title}"
 Context: "${article.description || article.title}"
 Source: "${article.source || 'Official Notification'}"
+Relatable Website Blog / Resource: "${resource.title}" (${resource.url})
+Key Solution Facts: "${resource.solutionFacts}"
 
 CRITICAL REQUIREMENTS:
 1. FACTUAL ACCURACY: State ONLY verified, accurate facts and numbers directly stated or implied by the article. Zero hallucinations.
-2. VISUAL CARD CONTENT: Provide rich, specific data for a unique infographic card that visually tells the whole story (including a prominent stat number, label, and exactly 3 verified, distinct factual bullet points).
-3. HOT TRENDING HASHTAGS: Select high-impression, currently trending hashtags for this specific topic, combining statutory tags with viral business tags.
+2. VISUAL CARD CONTENT: Provide rich, specific data for an infographic card (prominent stat number, label, and exactly 3 verified, distinct bullet points).
+3. HOT TRENDING HASHTAGS: High-impression hashtags (#EPFO, #Compliance, #LabourLaw, #Payroll, #HRIndia).
+4. RELATABLE BLOG LINK: You MUST integrate the direct relatable blog guide link: "${resource.url}" across platforms.
+5. TWITTER 4-PART THREAD STRUCTURE:
+   - Tweet 1 (The Problem / Regulatory Alert Hook): News alert, who is impacted, attach reference link (${resource.url}), #EPFO #Compliance (1/4). Strict limit: <= 255 chars.
+   - Tweet 2 (Statutory & Legal Analysis): Background rules, sections (§ 7Q interest @12%, § 14B damages, circular dates, employer risks). (2/4). Strict limit: <= 260 chars. No links.
+   - Tweet 3 (Practical Actionable Solution): Concrete step-by-step resolution for employers/members (ECR filing, Joint Declaration, exit date correction, UAN seeding). (3/4). Strict limit: <= 260 chars. No links.
+   - Tweet 4 (Conclusion & Relatable Blog): Conclusion, final risk mitigation advice, direct guide link (${resource.url}), #LabourLaw #Compliance #HRTech (4/4). Strict limit: <= 255 chars.
 
 Format your output STRICTLY as a valid JSON object matching this schema:
 {
@@ -139,22 +188,24 @@ Format your output STRICTLY as a valid JSON object matching this schema:
     "Actionable employer/employee step or deadline 3 from the article (max 85 chars)"
   ],
   "insight": "1-2 sentence core actionable takeaway for image card (max 120 chars)",
-  "resourceTitle": "Name of relevant tool or guide at ${profile.websiteUrl}",
-  "trendingHashtags": ["#EPFO", "#Compliance", "...10-15 relevant tags"],
+  "resourceTitle": "${resource.title}",
+  "resourceUrl": "${resource.url}",
+  "trendingHashtags": ["#EPFO", "#Compliance", "#LabourLaw", "#Payroll", "#HRIndia"],
   "linkedin": {
-    "post": "Long-form B2B thought leadership post (800-1400 chars). Start with an executive hook. Use paragraph spacing. Detail the compliance background. Include 3 bullet takeaways with exact numbers/sections. State compliance impact for HR/CFOs. End with a call to visit ${profile.websiteUrl} and 5-7 professional hashtags like #Compliance #LabourLaw #HRTech #IndiaBusiness #Payroll"
+    "post": "Long-form B2B thought leadership post (800-1400 chars). Start with an executive hook on the problem. Detail the statutory breakdown. Include 3 bullet takeaways. State compliance impact for HR/CFOs. End with a call to read the detailed guide at ${resource.url} and hashtags like #Compliance #LabourLaw #HRTech #IndiaBusiness #Payroll"
   },
   "instagram": {
-    "caption": "High-engagement visual post caption (400-800 chars). Start with a punchy emoji hook. 4 bulleted takeaways. Strong CTA ('📌 Save this post for your compliance records', '🔗 Link in bio for statutory calculators'). Include 18-22 relevant trending hashtags like #compliance #labourlaw #epfo #hrcommunity #startupindia #taxupdates"
+    "caption": "High-engagement visual post caption (400-800 chars). Start with a punchy emoji hook. 4 bulleted takeaways. Strong CTA ('📌 Save this post for your compliance records', '🔗 Complete guide at ${resource.url} and link in bio: ${profile.websiteUrl}'). Include 18-22 relevant hashtags."
   },
   "facebook": {
-    "post": "Engaging community page post (400-800 chars). Conversational, trustworthy tone. Clearly explain how this affects employers and employees. Direct link to ${profile.websiteUrl}. End with a conversation question ('Have you reviewed your establishment status yet?'). Include 4-6 hashtags."
+    "post": "Engaging community page post (400-800 chars). Conversational, trustworthy tone. Clearly explain how this affects employers and employees. Direct link to ${resource.url}. End with a conversation question ('Have you reviewed your establishment compliance yet?'). Include 4-6 hashtags."
   },
   "twitter": {
     "thread": [
-      "Tweet 1 (Hook + Link + Image tag): Hook, core context, link (${profile.websiteUrl}) (1/3)",
-      "Tweet 2 (Actionable Breakdown): Key insights, practical steps (2/3)",
-      "Tweet 3 (CTA): Conclusion, check out ${profile.websiteUrl} (3/3)"
+      "Tweet 1 (Hook + Link): Headline hook, regulatory alert, reference link (${resource.url}) #EPFO #Compliance (1/4)",
+      "Tweet 2 (Legal Breakdown): In-depth statutory rules, interest/damages sections (2/4)",
+      "Tweet 3 (Action Plan): Practical solution steps for HR/employers/members (3/4)",
+      "Tweet 4 (Conclusion & Blog Link): Conclusion, check our full breakdown at ${resource.url} #LabourLaw #Compliance (4/4)"
     ]
   }
 }`;
@@ -174,15 +225,15 @@ Format your output STRICTLY as a valid JSON object matching this schema:
         statLabel: data.statLabel || meta.statLabel,
         keyPoints: (Array.isArray(data.keyPoints) && data.keyPoints.length >= 3) ? data.keyPoints : meta.keyPoints,
         insight: data.insight || "Ensure compliance with statutory norms and verify employer liabilities.",
-        resourceTitle: data.resourceTitle || "Statutory Calculators",
-        resourceUrl: profile.websiteUrl,
+        resourceTitle: data.resourceTitle || resource.title,
+        resourceUrl: data.resourceUrl || resource.url,
         source: article.source,
         pubDate: article.pubDate,
         trendingHashtags: data.trendingHashtags || ["#EPFO", "#Compliance", "#LabourLaw", "#HRTech"],
         linkedin: data.linkedin?.post,
         instagram: data.instagram?.caption,
         facebook: data.facebook?.post,
-        twitter: buildTwitterThread(data.twitter, article, meta, profile),
+        twitter: buildTwitterThread(data.twitter, article, meta, profile, resource),
       };
     }
   } catch (err) {
@@ -199,19 +250,20 @@ Format your output STRICTLY as a valid JSON object matching this schema:
     statLabel: meta.statLabel,
     keyPoints: meta.keyPoints,
     insight: "Ensure compliance with statutory norms and verify employer liabilities.",
-    resourceTitle: "Statutory Tools & Guides",
-    resourceUrl: profile.websiteUrl,
+    resourceTitle: resource.title,
+    resourceUrl: resource.url,
     source: article.source,
     pubDate: article.pubDate,
     trendingHashtags: ["#EPFO", "#Compliance", "#LabourLaw", "#HRTech", "#PensionUpdate"],
-    linkedin: `📢 [${meta.categoryBadge}] ${article.title}\n\nKey Highlights for Employers & HR Leaders:\n• ${meta.keyPoints[0]}\n• ${meta.keyPoints[1]}\n• ${meta.keyPoints[2]}\n\n🔗 Explore statutory calculators & compliance tools: ${profile.websiteUrl}\n\n#Compliance #LabourLaw #HRLeadership #Payroll #IndiaBusiness #EPFO`,
-    instagram: `🚨 URGENT ${meta.categoryBadge}: ${article.title}\n\nKey Facts You Must Know Today:\n👉 ${meta.keyPoints[0]}\n👉 ${meta.keyPoints[1]}\n👉 ${meta.keyPoints[2]}\n\n📌 Save this post for your compliance records!\n🔗 Direct tools & calculator link in bio: ${profile.websiteUrl}\n\n#compliance #labourlaw #epfo #hrcommunity #taxcompliance #payroll #startupindia #pensionupdate #indianbusiness #cfoindia`,
-    facebook: `🔔 Important Compliance Update for Establishments & Employees:\n\n${article.title}\n\nKey Points to Review:\n• ${meta.keyPoints[0]}\n• ${meta.keyPoints[1]}\n• ${meta.keyPoints[2]}\n\nUnderstanding your statutory obligations is essential to avoid unnecessary interest and damages. We have broken down the complete notification and calculation formulas on our platform.\n\n👉 Read the complete breakdown and calculate your liability at ${profile.websiteUrl}\n\nHave you verified your compliance status for this month?\n\n#Compliance #EPFO #LabourLaw #BusinessIndia`,
-    twitter: buildTwitterThread(null, article, meta, profile)
+    linkedin: `📢 [${meta.categoryBadge}] ${article.title}\n\nKey Highlights for Employers & HR Leaders:\n• ${meta.keyPoints[0]}\n• ${meta.keyPoints[1]}\n• ${meta.keyPoints[2]}\n\n🔗 Explore statutory calculators & compliance tools: ${resource.url}\n\n#Compliance #LabourLaw #HRLeadership #Payroll #IndiaBusiness #EPFO`,
+    instagram: `🚨 URGENT ${meta.categoryBadge}: ${article.title}\n\nKey Facts You Must Know Today:\n👉 ${meta.keyPoints[0]}\n👉 ${meta.keyPoints[1]}\n👉 ${meta.keyPoints[2]}\n\n📌 Save this post for your compliance records!\n🔗 Direct tools & guide link: ${resource.url} (link in bio)\n\n#compliance #labourlaw #epfo #hrcommunity #taxcompliance #payroll #startupindia #pensionupdate #indianbusiness #cfoindia`,
+    facebook: `🔔 Important Compliance Update for Establishments & Employees:\n\n${article.title}\n\nKey Points to Review:\n• ${meta.keyPoints[0]}\n• ${meta.keyPoints[1]}\n• ${meta.keyPoints[2]}\n\nUnderstanding your statutory obligations is essential to avoid unnecessary interest and damages. We have broken down the complete notification and calculation formulas on our platform.\n\n👉 Read the complete breakdown and calculate your liability at ${resource.url}\n\nHave you verified your compliance status for this month?\n\n#Compliance #EPFO #LabourLaw #BusinessIndia`,
+    twitter: buildTwitterThread(null, article, meta, profile, resource)
   };
 }
 
-function buildTwitterThread(rawTwitter, article, meta, profile) {
+function buildTwitterThread(rawTwitter, article, meta, profile, resource) {
+  const blogUrl = (resource && resource.url) ? resource.url : profile.websiteUrl;
   let list = [];
   if (Array.isArray(rawTwitter)) {
     list = rawTwitter;
@@ -225,18 +277,20 @@ function buildTwitterThread(rawTwitter, article, meta, profile) {
     list = [rawTwitter];
   }
 
-  if (list.length < 3) {
+  // Ensure 4 distinct tweets: Problem -> Legal Breakdown -> Actionable Solution -> Conclusion + Relatable Blog
+  if (list.length < 4) {
     list = [
-      `🚨 [Update] ${article.title}\n\nKey Metric: ${meta.statNumber} (${meta.statLabel})\nFull advisory & calculators: ${profile.websiteUrl} #Compliance (1/3)`,
-      `Key Takeaways:\n• ${meta.keyPoints[0]}\n• ${meta.keyPoints[1]} (2/3)`,
-      `Action Step: ${meta.keyPoints[2]}\n\nUse our certified calculators to verify compliance at ${profile.websiteUrl} #EPFO #HRTech (3/3)`
+      `1/4 🚨 Compliance Alert: ${article.title.slice(0, 120)}\n\nReview liability & guidelines: ${blogUrl} #EPFO #Compliance`,
+      `2/4 🔍 Legal Analysis:\n• Under § 7Q: Penal interest @ 12% p.a. mandatory\n• Under § 14B: Compounding damages apply for belated remittance\n• Timely ECR filing protects against statutory recovery.`,
+      `3/4 💡 Action Plan for Employers:\n• Reconcile monthly payroll before 10th\n• File ECR & remit dues by 15th\n• Complete UAN & Aadhaar seeding for all employees\n• Resolve service overlaps promptly.`,
+      `4/4 ⚖️ Conclusion: Avoid bank attachments & prosecution through proactive compliance.\n\nRead our comprehensive guide & calculators:\n👉 ${blogUrl}\n\n#LabourLaw #PF #HRIndia`
     ];
   }
 
-  return list.slice(0, 3).map((tweet) => {
+  return list.slice(0, 4).map((tweet) => {
     let t = String(tweet).trim();
-    if (t.length > 260) {
-      t = t.slice(0, 255) + "...";
+    if (t.length > 255) {
+      t = t.slice(0, 250) + "...";
     }
     return t;
   });
@@ -244,4 +298,5 @@ function buildTwitterThread(rawTwitter, article, meta, profile) {
 
 module.exports = {
   generateOmnichannelPost,
+  savePostedHeadline,
 };

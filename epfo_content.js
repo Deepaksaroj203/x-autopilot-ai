@@ -214,7 +214,7 @@ async function generateEpfoTweet(genAI) {
   let selectedTierName = "";
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-3.5-flash-lite",
+    model: "gemini-3.8-flash",
     generationConfig: {
       temperature: 0.2,
       maxOutputTokens: 1200,

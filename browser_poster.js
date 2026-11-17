@@ -71,6 +71,10 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
     await page.goto("https://x.com/compose/post", { waitUntil: "domcontentloaded", timeout: 35000 });
     await page.waitForTimeout(2500);
 
+    // Locate the modal dialog specifically
+    const dialog = page.locator('div[role="dialog"][aria-modal="true"]').first();
+    await dialog.waitFor({ state: "visible", timeout: 20000 });
+
     // Check if any leftover modal/draft prompt exists and discard it
     try {
       const discardBtn = page.locator('button[data-testid="confirmationSheetConfirm"]');
@@ -82,14 +86,14 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
     } catch (_) {}
 
     // 1. Tweet 1 (Hook + Direct Reference Link + Infographic Image)
-    const textbox0 = page.locator('div[data-testid="tweetTextarea_0"]').first();
+    const textbox0 = dialog.locator('div[role="textbox"]').first();
     await textbox0.waitFor({ state: "visible", timeout: 15000 });
 
     console.log(`✍️ Typing Tweet 1/${thread.length} (Subject Hook + Reference Link)...`);
     await textbox0.click({ force: true });
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(400);
     await page.keyboard.insertText(thread[0]);
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(400);
     await page.keyboard.press("Escape"); // Dismiss hashtag autocomplete dropdown
     await page.waitForTimeout(1000);
 
@@ -99,34 +103,45 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
       const fileInput = page.locator('input[data-testid="fileInput"], input[type="file"]').first();
       await fileInput.setInputFiles(imagePath);
       console.log("⏳ Waiting for image upload preview to render...");
-      await page.locator('[data-testid="attachments"], div[aria-label="Image"], button[aria-label="Remove media"]').first().waitFor({ state: "visible", timeout: 25000 }).catch(() => {});
-      await page.waitForTimeout(3000);
+      await dialog.locator('[data-testid="attachments"], div[aria-label="Image"], button[aria-label="Remove media"]').first().waitFor({ state: "visible", timeout: 25000 }).catch(() => {});
+      await page.waitForTimeout(2500);
     }
 
     // 2. Chained Tweets (Tweet 2 through Tweet N) to form the full thread
     for (let i = 1; i < thread.length; i++) {
       console.log(`➕ Clicking 'Add post' to compose Tweet ${i + 1}/${thread.length}...`);
-      const countBefore = await page.locator('div[data-testid*="tweetTextarea"][role="textbox"]').count();
-      const addBtn = page.locator('button[data-testid="addButton"], button[aria-label="Add post"], button[aria-label*="Add"]').last();
+      const countBefore = await dialog.locator('div[role="textbox"]').count();
       
-      if (await addBtn.isVisible({ timeout: 6000 }).catch(() => false)) {
-        await addBtn.click({ force: true });
-        // Wait until new textarea actually spawns in the DOM
-        await page.waitForFunction((c) => {
-          return document.querySelectorAll('div[data-testid*="tweetTextarea"][role="textbox"]').length > c;
-        }, countBefore, { timeout: 8000 }).catch(() => null);
+      const addBtn = dialog.locator('button[data-testid="addButton"], button[aria-label="Add post"]').first();
+      await addBtn.scrollIntoViewIfNeeded().catch(() => {});
+      await addBtn.click({ force: true });
+
+      // Wait until new textarea actually spawns in the dialog
+      try {
+        await page.waitForFunction(
+          (expected) => {
+            const d = document.querySelector('div[role="dialog"][aria-modal="true"]');
+            return d && d.querySelectorAll('div[role="textbox"]').length >= expected;
+          },
+          countBefore + 1,
+          { timeout: 5000 }
+        );
+      } catch (err) {
+        console.warn(`Retry clicking add button for Tweet ${i + 1}...`);
+        await addBtn.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(2000);
       }
 
-      const countAfter = await page.locator('div[data-testid*="tweetTextarea"][role="textbox"]').count();
-      if (countAfter > countBefore) {
-        const nextTextarea = page.locator(`div[data-testid="tweetTextarea_${i}"], div[data-testid*="tweetTextarea"][role="textbox"]`).last();
+      const countAfter = await dialog.locator('div[role="textbox"]').count();
+      if (countAfter >= countBefore + 1) {
+        const nextTextarea = dialog.locator('div[role="textbox"]').nth(i);
         await nextTextarea.scrollIntoViewIfNeeded();
         await nextTextarea.click({ force: true });
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(400);
         await page.keyboard.insertText(thread[i]);
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(400);
         await page.keyboard.press("Escape"); // Dismiss hashtag dropdown
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(800);
       } else {
         console.warn(`⚠️ Could not spawn thread textarea ${i + 1}; skipping chained tweet to prevent character overflow.`);
       }
@@ -134,22 +149,24 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
 
     // 3. Publish the thread / post atomically
     console.log("⏳ Waiting for Post button to become enabled...");
-    const postAllBtn = page.locator('button[data-testid="tweetButton"], button:has-text("Post all"), button:has-text("Post")').first();
+    const postAllBtn = dialog.locator('button[data-testid="tweetButton"]').first();
     await postAllBtn.waitFor({ state: "visible", timeout: 10000 });
 
     // Wait for active state
     await page.waitForFunction(() => {
-      const btn = document.querySelector('button[data-testid="tweetButton"]');
+      const d = document.querySelector('div[role="dialog"][aria-modal="true"]');
+      const btn = d ? d.querySelector('button[data-testid="tweetButton"]') : document.querySelector('button[data-testid="tweetButton"]');
       return btn && btn.getAttribute("aria-disabled") !== "true" && !btn.disabled;
     }, { timeout: 15000 }).catch(() => {});
 
-    console.log("🚀 Clicking Post button to publish full thread...");
+    const btnText = await postAllBtn.innerText().catch(() => "Post");
+    console.log(`🚀 Clicking "${btnText}" button to publish full thread...`);
     await postAllBtn.click({ force: true });
 
-    // 4. Confirm submission: Wait for the composer textarea to detach (disappear)
+    // 4. Confirm submission: Wait for the dialog to detach / close
     console.log("⏳ Waiting for Twitter backend to accept thread submission...");
-    await page.locator('div[data-testid="tweetTextarea_0"]').waitFor({ state: "detached", timeout: 35000 }).catch(() => {});
-    await page.waitForTimeout(6000);
+    await dialog.waitFor({ state: "detached", timeout: 35000 }).catch(() => {});
+    await page.waitForTimeout(5000);
 
     // 5. Verify published thread on live profile
     console.log("🔍 Navigating to @EPFOCompliance profile to verify live publication...");
