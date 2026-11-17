@@ -45,8 +45,6 @@ async function generateContent(genAI) {
   }
 
   const selectedArticle = allArticles[0];
-  const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
-
   const prompt = `You are a social media growth expert for ${profile.name} (${profile.accountHandle}).
 Write a high-converting, educational 3-part Twitter thread based on this headline:
 "${selectedArticle.title}"
@@ -59,13 +57,21 @@ Format strictly as JSON array:
 ]`;
 
   let thread = [];
-  try {
-    const res = await model.generateContent(prompt);
-    const jsonMatch = res.response.text().match(/\\[[\\s\\S]*\\]/);
-    if (jsonMatch) {
-      thread = JSON.parse(jsonMatch[0]);
-    }
-  } catch (_) {
+  const candidateModels = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
+  for (const modelName of candidateModels) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const res = await model.generateContent(prompt);
+      const text = res.response.text();
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        thread = JSON.parse(jsonMatch[0]);
+        break;
+      }
+    } catch (_) {}
+  }
+
+  if (thread.length === 0) {
     thread = [
       `[${profile.name} Update] ${selectedArticle.title} Read more: ${profile.websiteUrl} ${profile.hashtags.join(" ")} Thread 👇 (1/3)`,
       `Key Takeaways: Exploring what this means for the industry and practical steps forward. (2/3)`,
