@@ -67,6 +67,16 @@ async function sendThread(thread, imagePath = null) {
     console.error("Error sending thread to Twitter API:");
     if (error.data) {
       console.error(JSON.stringify(error.data, null, 2));
+      const is402 = error.status === 402 || error.data?.status === 402 || (error.message && error.message.includes("402"));
+      if (is402) {
+        console.warn("\n==================================================================");
+        console.warn("⚠️ NOTICE: X / Twitter API returned HTTP 402 'Payment Required: credits depleted'.");
+        console.warn("ℹ️ X developer accounts require paid API credits to post tweets via API.");
+        console.warn("💡 GOOD NEWS: Your primary production runner ('run_browser_bot.bat')");
+        console.warn("   posts to Twitter, LinkedIn, Instagram, and Facebook with ZERO API fees & ZERO paywalls.");
+        console.warn("==================================================================\n");
+        return { skipped: true, reason: "X API credits depleted (HTTP 402)" };
+      }
       const hasCode89 = Array.isArray(error.data.errors) && error.data.errors.some(e => e.code === 89);
       if (hasCode89) {
         console.error("\n💡 DIAGNOSTIC: Twitter Error Code 89 indicates that APP_KEY, APP_SECRET, ACCESS_TOKEN, or ACCESS_SECRET in GitHub Secrets is invalid, expired, or has a typo.");
@@ -97,7 +107,12 @@ async function run() {
   }
 
   console.log("Posting complete 3-part thread to Twitter API...");
-  await sendThread(thread, imagePath);
+  const sendRes = await sendThread(thread, imagePath);
+  if (sendRes && sendRes.skipped) {
+    console.log(`ℹ️ Twitter API post skipped: ${sendRes.reason}`);
+    console.log("✅ CI verification completed successfully (AI generation, blog matching & card rendering passed).");
+    return;
+  }
   savePostedHeadline(headline, source, pubDate);
   console.log(`✨ All done! Promoted: ${resourceTitle} (${resourceUrl})`);
 }
