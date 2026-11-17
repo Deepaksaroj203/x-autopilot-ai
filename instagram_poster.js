@@ -143,9 +143,25 @@ async function postToInstagram(captionText, imagePath, { interactive = false } =
 
     // Step 4 of modal: Click "Share"
     console.log("🚀 Publishing post to Instagram feed...");
-    const shareBtn = page.locator('div[role="button"]:has-text("Share"), button:has-text("Share")').first();
-    await shareBtn.waitFor({ state: "visible", timeout: 10000 });
-    await shareBtn.click();
+    const shareBtn = page.locator('div[role="dialog"] div[role="button"]:has-text("Share"), div[role="dialog"] button:has-text("Share"), div[role="button"]:has-text("Share"), button:has-text("Share")').first();
+    await shareBtn.waitFor({ state: "visible", timeout: 15000 });
+    
+    // Resilient click sequence bypassing any pointer-intercepting overlays (e.g. Tag People button)
+    try {
+      await shareBtn.click({ timeout: 4000 });
+    } catch (clickErr) {
+      console.log("ℹ️ Standard click intercepted by overlay, attempting force click...");
+      try {
+        await shareBtn.click({ force: true, timeout: 4000 });
+      } catch (_) {
+        console.log("ℹ️ Executing direct DOM evaluate click for Instagram Share button...");
+        await shareBtn.evaluate((el) => {
+          el.scrollIntoView();
+          el.click();
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        });
+      }
+    }
 
     // Wait for upload completion ("Your post has been shared")
     console.log("⏳ Awaiting Instagram upload completion...");

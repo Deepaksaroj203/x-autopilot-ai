@@ -38,6 +38,13 @@ function extractSmartMetadata(article, resource) {
     statLabel = "MONTHLY WAGE THRESHOLD";
     subStat = "₹15,000 STATUTORY CAP";
     governanceTag = "EPF & MP Act 1952 • Section 6A";
+  } else if (text.includes("whatsapp") || text.includes("bot") || text.includes("auto settlement") || text.includes("digital") || text.includes("1,000") || text.includes("1000") || text.includes("inactive pf")) {
+    category = "WITHDRAWAL";
+    categoryBadge = "EPFO 3.0 DIGITAL SERVICES";
+    statNumber = "₹1,000";
+    statLabel = "AUTO-SETTLEMENT CAP";
+    subStat = "+91 8796441800 BOT";
+    governanceTag = "EPFO Digital Governance & Auto-Mode Norms";
   } else if (text.includes("pension") || text.includes("eps") || text.includes("10d")) {
     category = "PENSION";
     categoryBadge = "EPS-95 PENSION REVALUATION";
@@ -52,7 +59,7 @@ function extractSmartMetadata(article, resource) {
     statLabel = "CREDITED INTEREST RATE";
     subStat = "COMPOUNDED ANNUALLY";
     governanceTag = "EPFO Central Board of Trustees Notification";
-  } else if (text.includes("withdraw") || text.includes("auto-claim") || text.includes("auto settlement") || text.includes("form 31")) {
+  } else if (text.includes("withdraw") || text.includes("auto-claim") || text.includes("form 31")) {
     category = "WITHDRAWAL";
     categoryBadge = "AUTO-CLAIM & SETTLEMENT";
     if (statNumber === "100%") statNumber = "3 Days";
@@ -75,20 +82,38 @@ function extractSmartMetadata(article, resource) {
     governanceTag = "EPFO SOP on Profile & Exit Corrections";
   }
 
-  // Dynamic context-derived bullet points matching this exact subject
+  // Dynamic context-derived bullet points matching this exact subject (Zero Generic Boilerplate)
+  let kp1 = `Mandatory compliance parameters under ${governanceTag} apply to all covered establishments.`;
+  let kp2 = `Review member records and statutory contribution allocations to prevent filing discrepancies.`;
+  let kp3 = `Ensure proactive compliance verification to safeguard against statutory audit liabilities.`;
+
+  if (category === "PENSION" && (text.includes("25,000") || text.includes("25000") || text.includes("ceiling"))) {
+    kp1 = "Proposed hike raises statutory wage ceiling from ₹15,000 to ₹25,000 per month.";
+    kp2 = "Mandatory EPF deduction expands to employees earning up to ₹25,000 basic + DA.";
+    kp3 = "Review employer CTC restructuring and calculate increased monthly PF liabilities.";
+  } else if (text.includes("whatsapp") || text.includes("bot") || text.includes("auto settlement") || text.includes("inactive pf")) {
+    kp1 = "Auto-settlement applies strictly to inoperative PF balances up to ₹1,000.";
+    kp2 = "Official WhatsApp bot (+91 8796441800) enables real-time balance & passbook checks.";
+    kp3 = "Verify UAN-registered mobile numbers are updated for employees across establishments.";
+  } else if (category === "WITHDRAWAL") {
+    kp1 = "Form 31 advances processed automatically under IT-enabled rules without manual intervention.";
+    kp2 = "Settlement turnaround reduced to 3 working days for verified KYC member accounts.";
+    kp3 = "Ensure member Aadhaar, bank account, and PAN seeding are active to avoid rejections.";
+  } else if (category === "COMPLIANCE" && (text.includes("vishwas") || text.includes("14b") || text.includes("7q"))) {
+    kp1 = "VISHWAS scheme provides up to 100% waiver on Section 14B compounding penal damages.";
+    kp2 = "Section 7Q simple interest @ 12% p.a. remains mandatory on belated ECR remittances.";
+    kp3 = "File settlement declarations before statutory deadline to close outstanding 7A disputes.";
+  } else if (resource && resource.solutionFacts) {
+    const facts = resource.solutionFacts.split(/[.;•\n]/).map(s => s.trim()).filter(s => s.length > 20);
+    if (facts[0]) kp1 = facts[0].slice(0, 95);
+    if (facts[1]) kp2 = facts[1].slice(0, 95);
+    if (facts[2]) kp3 = facts[2].slice(0, 95);
+  }
+
   const keyPoints = [
-    {
-      badge: "STATUTORY RULE",
-      text: `Mandatory compliance parameters under ${governanceTag} must be adhered to.`
-    },
-    {
-      badge: "ESTABLISHMENT IMPACT",
-      text: `Review monthly payroll allocations to prevent ECR discrepancies and filing rejections.`
-    },
-    {
-      badge: "ACTIONABLE SAFEGUARD",
-      text: `Verify member profiles, UAN seeding, and timely remittances to maintain zero penal liabilities.`
-    }
+    { badge: "STATUTORY RULE", text: kp1 },
+    { badge: "PAYROLL IMPACT", text: kp2 },
+    { badge: "COMPLIANCE ACTION", text: kp3 }
   ];
 
   return { category, categoryBadge, statNumber, statLabel, subStat, governanceTag, keyPoints };
@@ -98,33 +123,45 @@ function extractSmartMetadata(article, resource) {
  * Call Gemini with multi-model fallback to ensure 100% uptime and zero 503s
  */
 async function callGeminiWithFallback(genAI, prompt) {
-  // Use ultra-fast, high-availability Gemini endpoints
+  // Use ultra-fast, high-availability Gemini endpoints with automated retry & backoff
   const models = [
     "gemini-flash-lite-latest",
-    "gemini-3.5-flash-lite"
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite"
   ];
 
   let lastErr = null;
   for (const modelName of models) {
-    try {
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.15,
-          maxOutputTokens: 3500
+    // Retry each model up to 2 times with a 2.5-second sleep on transient 503/429
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.15,
+            maxOutputTokens: 3500
+          }
+        });
+        const res = await model.generateContent(prompt);
+        const text = res.response.text();
+        const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0]);
         }
-      });
-      const res = await model.generateContent(prompt);
-      const text = res.response.text();
-      const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+      } catch (err) {
+        lastErr = err;
+        const errMsg = err.message || "";
+        const isTransient = errMsg.includes("503") || errMsg.includes("429") || errMsg.includes("high demand") || errMsg.includes("fetch");
+        if (isTransient && attempt < 2) {
+          console.warn(`⏳ Model [${modelName}] busy/503 (attempt ${attempt}/2). Retrying in 2.5s...`);
+          await new Promise((r) => setTimeout(r, 2500));
+        } else {
+          console.warn(`⚠️ Model [${modelName}] failed (${errMsg.slice(0, 80)}). Trying next candidate...`);
+          break;
+        }
       }
-    } catch (err) {
-      lastErr = err;
-      console.warn(`⚠️ Model [${modelName}] failed (${err.message.slice(0, 80)}). Trying next candidate...`);
     }
   }
 
@@ -307,9 +344,9 @@ Return ONLY a valid JSON object matching this schema:
     source: article.source,
     pubDate: article.pubDate,
     trendingHashtags: ["#EPFO", "#Compliance", "#LabourLaw", "#HRTech", "#Payroll"],
-    linkedin: `📢 [${meta.categoryBadge}] ${article.title}\n\nKey Highlights for Employers, CFOs & HR Leaders:\n• Statutory Norm: Mandatory provisions under ${meta.governanceTag} apply to all covered establishments.\n• Payroll Impact: Review monthly ECR filings to ensure exact statutory allocation between EPF and EPS.\n• Risk Safeguard: Avoid penal interest under Section 7Q and damages under Section 14B through timely remittances.\n\n🔗 Explore our verified guide & compliance analysis: ${resource.url}\n\n#Compliance #LabourLaw #HRLeadership #Payroll #IndiaBusiness #EPFO`,
-    instagram: `🚨 CRITICAL COMPLIANCE NOTICE: ${article.title}\n\nWhat Employers & Employees Need to Know Today:\n👉 Statutory Framework: Governed by ${meta.governanceTag}.\n👉 Payroll Allocation: Verify EPF vs EPS contributions before monthly ECR upload.\n👉 Avoid Penalties: Timely remittances safeguard against statutory inspection damages.\n\n📌 Save this post for your compliance audit records!\n🔗 Complete guide & breakdown: ${resource.url} (link in bio: ${profile.websiteUrl})\n\n#compliance #labourlaw #epfo #hrcommunity #payroll #startupindia #taxupdates #cfoindia`,
-    facebook: `🔔 Important Compliance Update for Establishments & Employees:\n\n${article.title}\n\nUnderstanding your statutory obligations under ${meta.governanceTag} is essential to prevent unexpected liability assessments. We have broken down the complete notification, calculation formulas, and procedural guidelines on our platform.\n\n👉 Read the comprehensive analysis and guide at ${resource.url}\n\nHave you reviewed your establishment's compliance status for this month?\n\n#Compliance #EPFO #LabourLaw #BusinessIndia`,
+    linkedin: `📢 [${meta.categoryBadge}] ${article.title}\n\nKey Strategic Highlights for Leadership & HR Teams:\n• Statutory Framework: Governed under ${meta.governanceTag}.\n• ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n• ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n• ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\n🔗 Comprehensive analysis & guide: ${resource.url}\n\n#Compliance #LabourLaw #HRLeadership #Payroll #IndiaBusiness #EPFO`,
+    instagram: `🚨 COMPLIANCE NOTIFICATION: ${article.title}\n\nKey Insights for HR, Payroll & Members:\n👉 ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n👉 ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n👉 ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\n📌 Save this post for your compliance records!\n🔗 Complete guide: ${resource.url} (link in bio: ${profile.websiteUrl})\n\n#compliance #labourlaw #epfo #hrcommunity #payroll #businessindia #startupindia`,
+    facebook: `🔔 Important Regulatory Update for Employers & Employees:\n\n${article.title}\n\nKey Highlights:\n• ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n• ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n• ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\n👉 Read our full breakdown and access calculators at: ${resource.url}\n\n#Compliance #EPFO #LabourLaw #BusinessIndia`,
     twitter: buildTwitterThread(null, article, meta, profile, resource)
   };
 }
@@ -331,11 +368,15 @@ function buildTwitterThread(rawTwitter, article, meta, profile, resource) {
 
   // Ensure 4 distinct tweets: Problem -> Legal Breakdown -> Actionable Solution -> Conclusion + Relatable Blog
   if (list.length < 4) {
+    const kp0 = meta?.keyPoints?.[0]?.text || "Official regulatory notification released under statutory provisions.";
+    const kp1 = meta?.keyPoints?.[1]?.text || "Review payroll allocations to prevent filing discrepancies.";
+    const kp2 = meta?.keyPoints?.[2]?.text || "Ensure member records are updated to maintain compliance.";
+
     list = [
       `1/4 🚨 Compliance Alert: ${article.title.slice(0, 115)}\n\nReview liability & guidelines: ${blogUrl} #EPFO #Compliance`,
-      `2/4 🔍 Legal Analysis:\n• Governed by ${meta.governanceTag || 'EPF & MP Act 1952'}\n• Under § 7Q: Penal interest @ 12% p.a. mandatory on delay\n• Under § 14B: Compounding damages apply for belated remittance.`,
-      `3/4 💡 Action Plan for Employers:\n• Reconcile monthly payroll before 10th\n• File ECR & remit dues by 15th\n• Complete UAN & Aadhaar seeding for all employees\n• Resolve service overlaps promptly.`,
-      `4/4 ⚖️ Conclusion: Avoid bank attachments & prosecution through proactive compliance.\n\nRead our comprehensive guide & calculators:\n👉 ${blogUrl}\n\n#LabourLaw #PF #HRIndia`
+      `2/4 🔍 Legal Analysis:\n• Governed by ${meta?.governanceTag || 'EPF & MP Act 1952'}\n• ${kp0}`,
+      `3/4 💡 Practical Action Plan:\n• ${kp1}\n• ${kp2}`,
+      `4/4 ⚖️ Conclusion: Stay compliant and mitigate statutory liabilities.\n\nRead our comprehensive guide & calculators:\n👉 ${blogUrl}\n\n#LabourLaw #PF #HRIndia`
     ];
   }
 
