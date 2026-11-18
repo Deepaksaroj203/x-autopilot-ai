@@ -14,6 +14,7 @@ const { postToLinkedIn } = require("./linkedin_poster");
 const { postToInstagram } = require("./instagram_poster");
 const { postToFacebook } = require("./facebook_poster");
 const { postThreadViaBrowser } = require("./browser_poster");
+const { enforceLicense } = require("./license_guard");
 
 const STATUS_FILE = path.join(__dirname, "omnichannel_posting_status.json");
 const LOG_FILE = path.join(__dirname, "omnichannel_runner.log");
@@ -74,6 +75,20 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
     log("🛑 Aborting run: No internet connection.");
     return false;
   }
+
+  // Enforce Scoped License Key & Anti-Sharing Device Lock before any module runs
+  let licensedPlatforms = platforms;
+  try {
+    const auth = await enforceLicense(platforms);
+    licensedPlatforms = auth.allowedPlatforms;
+    if (!auth.ownerMode) {
+      log(`🔑 License active [${auth.planCode}] — permitted modules: [${licensedPlatforms.join(", ")}]`);
+    }
+  } catch (licErr) {
+    log(licErr.message);
+    return { success: false, blocked: true, error: licErr.message, results: {} };
+  }
+  platforms = licensedPlatforms;
 
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_API_KEY) {
