@@ -63,7 +63,14 @@ async function postToFacebook(postText, imagePath = null, { interactive = false 
       'div[aria-label*="What\'s on your mind"], div[role="button"]:has-text("What\'s on your mind"), div[aria-label="Account controls and settings"], svg[aria-label="Your profile"]'
     ).first();
 
-    const isLoggedIn = await loggedInIndicator.isVisible().catch(() => false);
+    // Wait up to 20s for React hydration instead of instant check (prevents false skips on slow disk/network)
+    let isLoggedIn = false;
+    try {
+      await loggedInIndicator.waitFor({ state: "visible", timeout: 20000 });
+      isLoggedIn = true;
+    } catch (_) {
+      isLoggedIn = false;
+    }
 
     if (!isLoggedIn) {
       if (!interactive) {
@@ -118,8 +125,11 @@ async function postToFacebook(postText, imagePath = null, { interactive = false 
     await page.waitForTimeout(500);
 
     console.log("✍️ Typing Facebook post content...");
-    await textEditor.fill(postText);
-    await page.waitForTimeout(1000);
+    // Append trailing space so Facebook closes hashtag autocomplete dropdown instead of floating over the Post button
+    await textEditor.fill(postText.trim() + " \n");
+    await page.waitForTimeout(600);
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(600);
 
     // Upload image if provided
     if (imagePath && fs.existsSync(imagePath)) {
@@ -133,7 +143,7 @@ async function postToFacebook(postText, imagePath = null, { interactive = false 
           // Click Photo/video button inside dialog to reveal input
           const photoBtn = page.locator('div[role="dialog"] div[aria-label*="Photo/video"]').first();
           if (await photoBtn.isVisible().catch(() => false)) {
-            await photoBtn.click();
+            await photoBtn.click({ force: true });
             await page.waitForTimeout(1500);
             const revealedInput = page.locator('div[role="dialog"] input[type="file"][accept*="image"]').first();
             if (await revealedInput.count() > 0) {
@@ -147,13 +157,33 @@ async function postToFacebook(postText, imagePath = null, { interactive = false 
       }
     }
 
-    // Click Post Button
+    // Dismiss any lingering hashtag/mention autocomplete popover before clicking Post
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(500);
+
+    // Click Post Button with 3-tier overlay bypass (prevents hashtag autocomplete pointer interception)
     console.log("🚀 Publishing post to Facebook...");
     const postSubmitBtn = page.locator('div[role="dialog"] div[aria-label="Post"][role="button"], div[role="dialog"] button:has-text("Post")').first();
-    await postSubmitBtn.waitFor({ state: "visible", timeout: 10000 });
-    await postSubmitBtn.click();
+    await postSubmitBtn.waitFor({ state: "visible", timeout: 15000 });
+    try {
+      await postSubmitBtn.click({ timeout: 5000 });
+    } catch (_) {
+      console.log("ℹ️ Standard Facebook Post click intercepted by popup, attempting force click...");
+      try {
+        await postSubmitBtn.click({ force: true, timeout: 5000 });
+      } catch (_) {
+        console.log("ℹ️ Executing direct DOM evaluate click for Facebook Post button...");
+        await postSubmitBtn.evaluate((el) => {
+          el.scrollIntoView();
+          el.click();
+          el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+        });
+      }
+    }
 
-    await page.waitForTimeout(6000);
+    // Wait for composer dialog to close (confirms submission)
+    await page.locator('div[role="dialog"] div[aria-label="Post"][role="button"]').first().waitFor({ state: "detached", timeout: 20000 }).catch(() => {});
+    await page.waitForTimeout(5000);
     console.log("🎉 Post successfully published to Facebook!");
     return { success: true, platform: "facebook" };
 

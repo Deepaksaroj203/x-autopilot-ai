@@ -49,13 +49,18 @@ async function postToLinkedIn(postText, imagePath = null, { interactive = false 
   try {
     console.log("🔍 Checking LinkedIn session...");
     await page.goto("https://www.linkedin.com/feed/", { waitUntil: "domcontentloaded", timeout: 45000 });
-    await page.waitForTimeout(3000);
 
     const loggedInIndicator = page.locator(
       'button.share-box-feed-entry__trigger, button:has-text("Start a post"), a[href*="/in/"], nav[aria-label="Primary"]'
     ).first();
 
-    const isLoggedIn = await loggedInIndicator.isVisible().catch(() => false);
+    let isLoggedIn = false;
+    try {
+      await loggedInIndicator.waitFor({ state: "visible", timeout: 20000 });
+      isLoggedIn = true;
+    } catch (_) {
+      isLoggedIn = false;
+    }
 
     if (!isLoggedIn) {
       if (!interactive) {

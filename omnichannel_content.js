@@ -1,6 +1,8 @@
 // omnichannel_content.js — Unified AI Content Synthesis for LinkedIn, Instagram, Facebook & Twitter
 // Uses Google Gemini (with multi-model fallback) to generate 100% context-aligned social copy and infographic data.
 
+const fs = require("fs");
+const path = require("path");
 const { getActiveProfile } = require("./config/config_loader");
 const {
   fetchTopImpressionEpfoNews,
@@ -103,6 +105,18 @@ function extractSmartMetadata(article, resource) {
     kp1 = "VISHWAS scheme provides up to 100% waiver on Section 14B compounding penal damages.";
     kp2 = "Section 7Q simple interest @ 12% p.a. remains mandatory on belated ECR remittances.";
     kp3 = "File settlement declarations before statutory deadline to close outstanding 7A disputes.";
+  } else if (category === "INTEREST" || text.includes("interest") || text.includes("rate") || text.includes("credit")) {
+    kp1 = "EPFO Central Board of Trustees (CBT) approved 8.25% interest rate for member balances.";
+    kp2 = "Interest compounded annually and credited tax-free up to ₹2.5 Lakh annual contribution.";
+    kp3 = "Access member electronic passbook via UMANG or EPFO portal to verify credited amount.";
+  } else if (category === "PENSION" || text.includes("eps") || text.includes("higher pension")) {
+    kp1 = "Supreme Court order governs higher pension calculation on actual wages above ceiling.";
+    kp2 = "Employer 8.33% contribution ledger adjusted from EPF to EPS with statutory interest.";
+    kp3 = "Track joint option validation status online on EPFO Member Portal under Track Application.";
+  } else if (category === "COMPLIANCE" && (text.includes("ecr") || text.includes("remittance") || text.includes("15th") || text.includes("challan"))) {
+    kp1 = "Monthly ECR remittance deadline is strictly the 15th of each following calendar month.";
+    kp2 = "Belated payments attract mandatory simple interest @ 12% p.a. under Section 7Q.";
+    kp3 = "Reconcile TRRN challan receipts and verify establishment payment status immediately.";
   } else if (resource && resource.solutionFacts) {
     const facts = resource.solutionFacts.split(/[.;•\n]/).map(s => s.trim()).filter(s => s.length > 20);
     if (facts[0]) kp1 = facts[0].slice(0, 95);
@@ -116,14 +130,77 @@ function extractSmartMetadata(article, resource) {
     { badge: "COMPLIANCE ACTION", text: kp3 }
   ];
 
-  return { category, categoryBadge, statNumber, statLabel, subStat, governanceTag, keyPoints };
+  const trendingHashtags = getTrendingHashtagsForCategory(category, article.title);
+
+  return { category, categoryBadge, statNumber, statLabel, subStat, governanceTag, keyPoints, trendingHashtags };
+}
+
+function getTrendingHashtagsForCategory(category, title) {
+  const t = (title || "").toLowerCase();
+  if (category === "INTEREST" || t.includes("interest")) {
+    return ["#EPFO", "#PFInterest", "#8PercentInterest", "#PersonalFinanceIndia", "#TaxFree", "#Savings", "#Salary"];
+  }
+  if (category === "PENSION" || t.includes("pension") || t.includes("ceiling") || t.includes("wage")) {
+    return ["#EPFO", "#EPS95", "#PensionHike", "#SalaryRestructuring", "#RetirementPlanning", "#LabourLaw", "#HRIndia"];
+  }
+  if (category === "WITHDRAWAL" || t.includes("withdraw") || t.includes("whatsapp") || t.includes("claim")) {
+    return ["#EPFO", "#PFWithdrawal", "#Form31", "#UANPortal", "#WhatsAppServices", "#IndianEmployees", "#LabourLaw"];
+  }
+  return ["#Compliance", "#LabourLaw", "#EPFO", "#PayrollIndia", "#HRLeadership", "#StatutoryAudit", "#IndiaBusiness"];
+}
+
+const SERIES_STATE_FILE = path.join(__dirname, "series_state.json");
+
+function getSeriesInfo() {
+  try {
+    if (fs.existsSync(SERIES_STATE_FILE)) {
+      return JSON.parse(fs.readFileSync(SERIES_STATE_FILE, "utf-8"));
+    }
+  } catch (_) {}
+  return {
+    currentDay: 7,
+    seriesTitle: "EPFO Rules Every HR & Employee Must Know",
+    commentKeywords: { instagram: "PF", linkedin: "COMPLIANCE", facebook: "GUIDE", twitter: "CHECKLIST" }
+  };
+}
+
+function advanceSeriesDay() {
+  try {
+    const data = getSeriesInfo();
+    data.currentDay = (data.currentDay || 1) + 1;
+    data.lastUpdated = new Date().toISOString();
+    fs.writeFileSync(SERIES_STATE_FILE, JSON.stringify(data, null, 2), "utf-8");
+    return data.currentDay;
+  } catch (_) {
+    return 8;
+  }
+}
+
+function generateMythHook(title, category) {
+  const t = (title || "").toLowerCase();
+  if (t.includes("wage") || t.includes("25,000") || t.includes("ceiling")) {
+    return "PF salary limit ₹25,000 hone se in-hand kam hoga?! 🛑 Ruko... asli hisaab alag hai! 👀";
+  }
+  if (t.includes("interest") || t.includes("8.25")) {
+    return "PF pe 8.25% interest sabko tax-free milega?! 🛑 Ruko... asli hisaab alag hai! 👀";
+  }
+  if (t.includes("pension") || t.includes("eps") || t.includes("higher")) {
+    return "Higher Pension par Supreme Court aur EPFO ka naya hisaab! 🛑 90% employees miss this! 👀";
+  }
+  if (t.includes("claim") || t.includes("reject") || t.includes("withdrawal")) {
+    return "PF claim baar-baar reject ho raha hai?! 🚫 Ye 3 reasons 95% log nahi jaante! 👀";
+  }
+  if (t.includes("vishwas") || t.includes("14b") || t.includes("damage")) {
+    return "EPFO 100% penal damages waive kar raha hai?! ⚠️ Sirf limited time window ke liye! 👀";
+  }
+  return `EPFO ka naya rule: Kya aapka PF safe hai?! 🛑 Ruko... asli hisaab alag hai! 👀`;
 }
 
 /**
  * Call Gemini with multi-model fallback to ensure 100% uptime and zero 503s
  */
 async function callGeminiWithFallback(genAI, prompt) {
-  // Use ultra-fast, high-availability Gemini endpoints with automated retry & backoff
+  // Use verified active Gemini endpoints with automated retry & backoff
   const models = [
     "gemini-flash-lite-latest",
     "gemini-3.5-flash-lite",
@@ -153,7 +230,7 @@ async function callGeminiWithFallback(genAI, prompt) {
       } catch (err) {
         lastErr = err;
         const errMsg = err.message || "";
-        const isTransient = errMsg.includes("503") || errMsg.includes("429") || errMsg.includes("high demand") || errMsg.includes("fetch");
+        const isTransient = !errMsg.includes("404") && !errMsg.includes("403") && (errMsg.includes("503") || errMsg.includes("429") || errMsg.includes("high demand"));
         if (isTransient && attempt < 2) {
           console.warn(`⏳ Model [${modelName}] busy/503 (attempt ${attempt}/2). Retrying in 2.5s...`);
           await new Promise((r) => setTimeout(r, 2500));
@@ -164,6 +241,27 @@ async function callGeminiWithFallback(genAI, prompt) {
       }
     }
   }
+
+  // Attempt local FreeLLMAPI if active
+  try {
+    const freeRes = await fetch("http://127.0.0.1:31415/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3.8-27b",
+        messages: [{ role: "user", content: prompt + "\n\nRespond strictly with valid JSON only." }],
+        temperature: 0.15
+      }),
+      signal: AbortSignal.timeout(6000)
+    });
+    if (freeRes.ok) {
+      const data = await freeRes.json();
+      const content = data.choices[0].message.content;
+      const cleaned = content.replace(/```json/gi, "").replace(/```/g, "").trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) return JSON.parse(jsonMatch[0]);
+    }
+  } catch (_) {}
 
   throw lastErr || new Error("All Gemini model endpoints failed.");
 }
@@ -233,6 +331,13 @@ async function generateOmnichannelPost(genAI, targetPlatform = "all") {
 
   const meta = extractSmartMetadata(article, resource);
 
+  const series = getSeriesInfo();
+  const dayNum = series.currentDay || 7;
+  const dmKwInsta = (series.commentKeywords && series.commentKeywords.instagram) || "PF";
+  const dmKwLinkedin = (series.commentKeywords && series.commentKeywords.linkedin) || "COMPLIANCE";
+  const dmKwFb = (series.commentKeywords && series.commentKeywords.facebook) || "GUIDE";
+  const mythHook = generateMythHook(article.title, meta.category);
+
   const prompt = `You are the Lead Social Media Growth Director and Senior Corporate Compliance Strategist for "${profile.name}" (${profile.websiteUrl}).
 Analyze this official regulatory news story:
 - Headline: "${article.title}"
@@ -240,22 +345,30 @@ Analyze this official regulatory news story:
 - Source: "${article.source || 'Official Notification'}"
 - Matched Corporate Compliance Guide: "${resource.title}" (${resource.url})
 - Core Solution Facts: "${resource.solutionFacts || ''}"
+- Series Context: "Day ${dayNum} of ${series.seriesTitle}"
+- Viral Myth Hook Reference: "${mythHook}"
 
-STRICT QUALITY & CONTEXT-ALIGNMENT RULES:
-1. 100% CONTEXT SPECIFICITY: The headline, numbers, bullet points, and social posts MUST DIRECTLY MATCH this exact news story. Zero generic placeholders. If the story discusses ₹25,000 salary earners, discuss the ₹25,000 wage threshold, mandatory vs voluntary EPF, EPS 8.33% cap at ₹15,000, and payroll impact.
-2. DUAL-METRIC DATA STRIP:
-   - "statNumber": Primary numeric highlight (e.g. "₹25,000", "8.25%", "100%", "3 Days", "12%").
-   - "statLabel": Exact uppercase metric description (e.g. "MONTHLY WAGE THRESHOLD", "CREDITED INTEREST RATE", "PENAL DAMAGES WAIVER").
-   - "subStat": Relevant secondary benchmark (e.g. "₹15,000 STATUTORY CAP", "§ 7Q MANDATORY INTEREST", "FORM 31 ADVANCE").
-3. THREE CATEGORIZED KEY POINTS FOR INFOGRAPHIC:
-   Provide an array of EXACTLY 3 objects with "badge" and "text":
-   - Point 1: {"badge": "STATUTORY RULE", "text": "Specific legal section, circular, or threshold from the story (max 95 chars)"}
-   - Point 2: {"badge": "PAYROLL IMPACT", "text": "Concrete wage split, deduction, or calculation impact for HR/employees (max 95 chars)"}
-   - Point 3: {"badge": "COMPLIANCE ACTION", "text": "Actionable filing, ECR reconciliation, or dispute rectification step (max 95 chars)"}
-4. STRATEGIC TAKEAWAY: One crisp, high-impact sentence for CFOs & HR leadership (max 115 chars).
-5. EXACT BLOG INTEGRATION: Seamlessly embed the exact relatable guide link "${resource.url}" across all platforms.
-6. TWITTER 4-PART THREAD:
-   - Tweet 1 (The Problem / Regulatory Alert Hook): News alert, who is impacted, direct reference link (${resource.url}), #EPFO #Compliance (1/4). Strict limit: <= 255 chars.
+STRICT HIGH-ENGAGEMENT VIRAL RULES:
+1. INSTAGRAM (VIRAL REEL/CAROUSEL FORMULA - 145%+ COMMENT CONVERSION):
+   - LINE 1 MUST BE COMMENT-TO-DM TRIGGER: 'Comment "${dmKwInsta}" and I\\'ll DM you the official circular PDF & checklist 👇'
+   - LINE 2: Empty line.
+   - LINE 3: Scroll-stopping pattern interrupt hook: '${mythHook}'
+   - LINES 4-7: 3 numbered points using clean emojis (1️⃣, 2️⃣, 3️⃣) explaining the real calculation/law.
+   - LINE 8: Series Anchor: 'This is Day ${dayNum} of ${series.seriesTitle}.'
+   - LINE 9: Discussion question: 'Did your employer deposit your PF correctly this month? Let\\'s discuss in the comments 👇'
+   - LINE 10: '📌 Save this post for your compliance records!'
+   - LINE 11: '🔗 Complete guide: ${resource.url} (link in bio: ${profile.websiteUrl})'
+   - LINE 12: 5-8 targeted hashtags at the very bottom only.
+2. LINKEDIN (B2B THOUGHT LEADERSHIP):
+   - LINE 1: 'Want our free EPFO Compliance Checklist & Calculator? Comment "${dmKwLinkedin}" below and I\\'ll send it over.'
+   - Executive headline with 'Day ${dayNum} • ${meta.categoryBadge}'.
+   - Statutory background, financial liability calculations, and 3 clear bullet takeaways.
+   - Strategic employer action plan and link to ${resource.url}.
+3. FACEBOOK (COMMUNITY RESOURCE):
+   - LINE 1: 'Comment "${dmKwFb}" and we will send you the complete step-by-step checklist!'
+   - Community-friendly summary, payroll impact, link to ${resource.url}, and closing question.
+4. TWITTER 4-PART THREAD:
+   - Tweet 1 (Hook + Link): Headline hook, regulatory alert, reference link (${resource.url}), #EPFO #Compliance (1/4). Strict limit: <= 255 chars.
    - Tweet 2 (Statutory & Legal Analysis): Governing statutory sections, employer risks, legal breakdown. (2/4). Strict limit: <= 260 chars. No links.
    - Tweet 3 (Practical Action Plan): Concrete steps for HR/employers/members (ECR filing, Joint Declaration, exit date correction, UAN seeding). (3/4). Strict limit: <= 260 chars. No links.
    - Tweet 4 (Conclusion & Relatable Guide): Conclusion, risk mitigation advice, direct guide link (${resource.url}), #LabourLaw #Compliance #HRTech (4/4). Strict limit: <= 255 chars.
@@ -279,20 +392,20 @@ Return ONLY a valid JSON object matching this schema:
   "resourceUrl": "${resource.url}",
   "trendingHashtags": ["#EPFO", "#Compliance", "#LabourLaw", "#HRTech", "#Payroll"],
   "linkedin": {
-    "post": "Long-form B2B thought leadership post (800-1400 chars) tailored 100% to this headline. Start with an executive hook on the problem. Detail the statutory background with exact numbers and sections. Provide 3 clear bullet takeaways. State compliance impact for HR/CFOs. End with a call to read the comprehensive guide at ${resource.url} and relevant hashtags."
+    "post": "..."
   },
   "instagram": {
-    "caption": "High-engagement visual post caption (400-800 chars) tailored 100% to this headline. Punchy emoji hook. 4 bulleted takeaways. Strong CTA ('📌 Save this post for your compliance records', '🔗 Complete guide at ${resource.url} (link in bio: ${profile.websiteUrl})'). Include 18-22 relevant hashtags."
+    "caption": "..."
   },
   "facebook": {
-    "post": "Engaging community page post (400-800 chars) tailored 100% to this headline. Clearly explain how this affects employers and employees. Direct link to ${resource.url}. End with an engagement question. Include 4-6 hashtags."
+    "post": "..."
   },
   "twitter": {
     "thread": [
-      "Tweet 1 (Hook + Link): Headline hook, regulatory alert, reference link (${resource.url}) #EPFO #Compliance (1/4)",
-      "Tweet 2 (Legal Breakdown): In-depth statutory rules, interest/damages sections (2/4)",
-      "Tweet 3 (Action Plan): Practical solution steps for HR/employers/members (3/4)",
-      "Tweet 4 (Conclusion & Blog Link): Conclusion, check our full breakdown at ${resource.url} #LabourLaw #Compliance (4/4)"
+      "Tweet 1...",
+      "Tweet 2...",
+      "Tweet 3...",
+      "Tweet 4..."
     ]
   }
 }`;
@@ -327,7 +440,6 @@ Return ONLY a valid JSON object matching this schema:
   }
 
   // High-Fidelity Programmatic Fallback (Zero Hallucination, 100% Context Alignment)
-  const safeTitle = article.title.slice(0, 110);
   return {
     article,
     headline: article.title,
@@ -343,10 +455,10 @@ Return ONLY a valid JSON object matching this schema:
     resourceUrl: resource.url,
     source: article.source,
     pubDate: article.pubDate,
-    trendingHashtags: ["#EPFO", "#Compliance", "#LabourLaw", "#HRTech", "#Payroll"],
-    linkedin: `📢 [${meta.categoryBadge}] ${article.title}\n\nKey Strategic Highlights for Leadership & HR Teams:\n• Statutory Framework: Governed under ${meta.governanceTag}.\n• ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n• ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n• ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\n🔗 Comprehensive analysis & guide: ${resource.url}\n\n#Compliance #LabourLaw #HRLeadership #Payroll #IndiaBusiness #EPFO`,
-    instagram: `🚨 COMPLIANCE NOTIFICATION: ${article.title}\n\nKey Insights for HR, Payroll & Members:\n👉 ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n👉 ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n👉 ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\n📌 Save this post for your compliance records!\n🔗 Complete guide: ${resource.url} (link in bio: ${profile.websiteUrl})\n\n#compliance #labourlaw #epfo #hrcommunity #payroll #businessindia #startupindia`,
-    facebook: `🔔 Important Regulatory Update for Employers & Employees:\n\n${article.title}\n\nKey Highlights:\n• ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n• ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n• ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\n👉 Read our full breakdown and access calculators at: ${resource.url}\n\n#Compliance #EPFO #LabourLaw #BusinessIndia`,
+    trendingHashtags: meta.trendingHashtags || ["#EPFO", "#Compliance", "#LabourLaw", "#HRTech", "#Payroll"],
+    linkedin: `Want our free EPFO Compliance Checklist & Calculator? Comment "${dmKwLinkedin}" below and I'll send it over.\n\n📢 [Day ${dayNum} • ${meta.categoryBadge}] ${article.title}\n\nKey Strategic Highlights for Leadership & HR Teams:\n• Statutory Framework: Governed under ${meta.governanceTag}.\n• ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n• ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n• ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\n🔗 Comprehensive analysis & guide: ${resource.url}\n\n${(meta.trendingHashtags || ["#Compliance", "#LabourLaw", "#HRLeadership", "#Payroll", "#IndiaBusiness", "#EPFO"]).join(" ")}`,
+    instagram: `Comment "${dmKwInsta}" and I'll DM you the official circular PDF & checklist 👇\n\n${mythHook}\n\nHere is the real statutory breakdown:\n1️⃣ ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n2️⃣ ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n3️⃣ ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\nThis is Day ${dayNum} of ${series.seriesTitle}.\n\nDid your employer deposit your PF on time? Let's discuss in the comments 👇\n\n📌 Save this post for your compliance records!\n🔗 Complete guide: ${resource.url} (link in bio: ${profile.websiteUrl})\n\n${(meta.trendingHashtags || ["#EPFO", "#PFWithdrawal", "#HRCompliance", "#PayrollIndia", "#LabourLaw", "#IndianBusiness"]).join(" ")}`,
+    facebook: `Comment "${dmKwFb}" and we will send you the complete step-by-step checklist!\n\n🔔 Day ${dayNum} Regulatory Update: ${article.title}\n\nKey Highlights:\n• ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n• ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n• ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\n👉 Read our full breakdown and access calculators at: ${resource.url}\n\n${(meta.trendingHashtags || ["#Compliance", "#EPFO", "#LabourLaw", "#BusinessIndia"]).slice(0, 5).join(" ")}`,
     twitter: buildTwitterThread(null, article, meta, profile, resource)
   };
 }
@@ -392,4 +504,6 @@ function buildTwitterThread(rawTwitter, article, meta, profile, resource) {
 module.exports = {
   generateOmnichannelPost,
   savePostedHeadline,
+  getSeriesInfo,
+  advanceSeriesDay,
 };

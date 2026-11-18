@@ -106,7 +106,39 @@ function saveStatus(status) {
   }
 }
 
-// Evaluate which slot should be run today
+const ALL_PLATFORMS = ["linkedin", "instagram", "facebook", "twitter"];
+const LOCK_FILE = path.join(__dirname, "daily_runner.lock");
+
+function getMissingPlatforms(slotData) {
+  const existing = (slotData && slotData.platforms) || {};
+  return ALL_PLATFORMS.filter((p) => existing[p] !== "SUCCESS");
+}
+
+function acquireLock() {
+  try {
+    if (fs.existsSync(LOCK_FILE)) {
+      const stat = fs.statSync(LOCK_FILE);
+      const ageMinutes = (Date.now() - stat.mtimeMs) / 60000;
+      if (ageMinutes < 20) {
+        log(`🔒 Another runner instance is active (lock age: ${ageMinutes.toFixed(1)}m). Exiting to avoid profile conflict.`);
+        return false;
+      }
+      log(`🧹 Clearing stale lock file (${ageMinutes.toFixed(1)}m old).`);
+    }
+    fs.writeFileSync(LOCK_FILE, `${process.pid} ${new Date().toISOString()}`, "utf8");
+    return true;
+  } catch (_) {
+    return true;
+  }
+}
+
+function releaseLock() {
+  try {
+    if (fs.existsSync(LOCK_FILE)) fs.unlinkSync(LOCK_FILE);
+  } catch (_) {}
+}
+
+// Evaluate which slot and which specific platforms should be run today
 function evaluateSlot(status, hours, minutes) {
   // Morning Slot target: 09:30 AM IST (Window: >= 09:00 AM)
   // Evening Slot target: 06:00 PM IST (Window: >= 17:30 / 5:30 PM)
@@ -114,10 +146,17 @@ function evaluateSlot(status, hours, minutes) {
   const isMorningWindow = hours >= 9;
   const isEveningWindow = hours > 17 || (hours === 17 && minutes >= 30);
 
-  if (!status.morning.done) {
+  const morningMissing = getMissingPlatforms(status.morning);
+  const eveningMissing = getMissingPlatforms(status.evening);
+  const morningHasAny = Object.keys(status.morning.platforms || {}).length > 0;
+  const eveningHasAny = Object.keys(status.evening.platforms || {}).length > 0;
+
+  // 1. Morning never ran yet
+  if (!morningHasAny && !status.morning.done) {
     if (isMorningWindow) {
       return {
         slot: "morning",
+        platforms: ALL_PLATFORMS,
         reason: isEveningWindow
           ? "Catch-up: Morning post was missed earlier today (executing now before evening slot)."
           : "Scheduled Morning Slot (Peak engagement window: 09:30 AM IST)."
@@ -125,26 +164,48 @@ function evaluateSlot(status, hours, minutes) {
     }
     return {
       slot: null,
+      platforms: [],
       reason: `Current time (${hours}:${String(minutes).padStart(2, "0")} IST) is before Morning peak window (09:00 AM).`
     };
   }
 
-  if (!status.evening.done) {
-    if (isEveningWindow) {
+  // 2. Daytime partial catch-up for any missed Morning platforms (before evening window opens)
+  if (!isEveningWindow && morningMissing.length > 0 && (status.morning.catchupCount || 0) < 3) {
+    return {
+      slot: "morning",
+      platforms: morningMissing,
+      reason: `Partial Recovery: Retrying missed Morning platforms [${morningMissing.join(", ")}] without double-posting completed ones.`
+    };
+  }
+
+  // 3. Evening slot (fresh run or partial catch-up for missed Evening platforms)
+  if (isEveningWindow) {
+    if (!eveningHasAny && !status.evening.done) {
       return {
         slot: "evening",
+        platforms: ALL_PLATFORMS,
         reason: "Scheduled Evening Slot (Peak engagement window: 06:00 PM IST)."
       };
     }
+    if (eveningMissing.length > 0 && (status.evening.catchupCount || 0) < 3) {
+      return {
+        slot: "evening",
+        platforms: eveningMissing,
+        reason: `Partial Recovery: Retrying missed Evening platforms [${eveningMissing.join(", ")}] without double-posting completed ones.`
+      };
+    }
+  } else {
     return {
       slot: null,
-      reason: `Morning slot already posted at ${status.morning.postedAt}. Evening slot opens at 05:30 PM IST.`
+      platforms: [],
+      reason: `Morning slot completed at ${status.morning.postedAt}. Evening slot opens at 05:30 PM IST.`
     };
   }
 
   return {
     slot: null,
-    reason: `All done! Both daily slots (Morning & Evening) are completed for today.`
+    platforms: [],
+    reason: `All done! Both daily slots (Morning & Evening) are completed across all 4 platforms for today.`
   };
 }
 
@@ -154,75 +215,103 @@ async function runDailyScheduler(forceSlot = null) {
   log(`⏰ EPFO Omnichannel Social Daily Runner: ${dateStr} ${hours}:${String(minutes).padStart(2, "0")} IST`);
   log(`================================================================`);
 
-  let status = loadStatus();
-
-  // Reset or initialize if new calendar day
-  if (!status || status.date !== dateStr) {
-    log(`📅 Initializing fresh daily posting tracking for ${dateStr}...`);
-    status = {
-      date: dateStr,
-      morning: { done: false, postedAt: null, headline: null, url: null, platforms: {} },
-      evening: { done: false, postedAt: null, headline: null, url: null, platforms: {} }
-    };
-    saveStatus(status);
+  if (!acquireLock()) {
+    return;
   }
 
-  // Determine slot
-  let targetSlot = forceSlot;
-  if (!targetSlot) {
-    const evaluation = evaluateSlot(status, hours, minutes);
-    if (!evaluation.slot) {
-      log(`ℹ️ ${evaluation.reason}`);
-      log(`✨ No posting action needed at this time. Exiting cleanly.`);
-      return;
+  try {
+    let status = loadStatus();
+
+    // Reset or initialize if new calendar day
+    if (!status || status.date !== dateStr) {
+      log(`📅 Initializing fresh daily posting tracking for ${dateStr}...`);
+      status = {
+        date: dateStr,
+        morning: { done: false, postedAt: null, headline: null, url: null, platforms: {}, catchupCount: 0 },
+        evening: { done: false, postedAt: null, headline: null, url: null, platforms: {}, catchupCount: 0 }
+      };
+      saveStatus(status);
     }
-    targetSlot = evaluation.slot;
-    log(`🎯 Target Posting Slot: [${targetSlot.toUpperCase()}] — ${evaluation.reason}`);
-  }
 
-  // Verify internet connectivity (with polite wait loop for Wi-Fi connection)
-  const isOnline = await waitForInternet(45, 15);
-  if (!isOnline) {
-    log("❌ Aborting scheduled post due to prolonged internet outage.");
-    process.exit(1);
-  }
-
-  // Execute omnichannel posting with up to 3 retries on transient errors
-  const maxRetries = 3;
-  let attempt = 0;
-  let postedResult = null;
-
-  while (attempt < maxRetries && !postedResult) {
-    attempt++;
-    try {
-      log(`🚀 Executing ${targetSlot.toUpperCase()} Omnichannel Social syndication (Attempt ${attempt}/${maxRetries})...`);
-      postedResult = await runOmnichannel({ platforms: ["twitter", "linkedin", "instagram", "facebook"] });
-    } catch (err) {
-      log(`⚠️ Attempt ${attempt} failed: ${err.message}`);
-      if (attempt < maxRetries) {
-        log(`⏳ Waiting 3 minutes before retrying...`);
-        await new Promise((r) => setTimeout(r, 180000));
+    // Determine slot and target platforms
+    let targetSlot = forceSlot;
+    let targetPlatforms = ALL_PLATFORMS;
+    if (!targetSlot) {
+      const evaluation = evaluateSlot(status, hours, minutes);
+      if (!evaluation.slot) {
+        log(`ℹ️ ${evaluation.reason}`);
+        log(`✨ No posting action needed at this time. Exiting cleanly.`);
+        return;
+      }
+      targetSlot = evaluation.slot;
+      targetPlatforms = evaluation.platforms;
+      log(`🎯 Target Posting Slot: [${targetSlot.toUpperCase()}] | Platforms: [${targetPlatforms.join(", ")}] — ${evaluation.reason}`);
+    } else {
+      const missing = getMissingPlatforms(status[targetSlot]);
+      if (missing.length > 0 && missing.length < ALL_PLATFORMS.length) {
+        targetPlatforms = missing;
+        log(`🎯 Forced Partial Recovery for [${targetSlot.toUpperCase()}]: [${targetPlatforms.join(", ")}]`);
       }
     }
-  }
 
-  if (postedResult && postedResult.success) {
-    status[targetSlot] = {
-      done: true,
-      postedAt: new Date().toISOString(),
-      headline: postedResult.headline,
-      source: postedResult.source,
-      url: postedResult.resourceUrl,
-      platforms: postedResult.results
-    };
-    saveStatus(status);
-    log(`🎉 SUCCESS: ${targetSlot.toUpperCase()} slot published across social media syndication!`);
-    log(`📌 Headline: "${postedResult.headline}"`);
-    log(`🔗 Promoted URL: ${postedResult.resourceUrl}`);
-    log(`📊 Platform Summary: ${JSON.stringify(postedResult.results, null, 2)}`);
-  } else {
-    log(`❌ Failed to post ${targetSlot.toUpperCase()} thread after ${maxRetries} attempts.`);
-    process.exit(1);
+    // Verify internet connectivity (with polite wait loop for Wi-Fi connection)
+    const isOnline = await waitForInternet(45, 15);
+    if (!isOnline) {
+      log("❌ Aborting scheduled post due to prolonged internet outage.");
+      process.exitCode = 1;
+      return;
+    }
+
+    // Execute omnichannel posting with up to 2 outer retries on fatal errors
+    const maxRetries = 2;
+    let attempt = 0;
+    let postedResult = null;
+
+    while (attempt < maxRetries && !postedResult) {
+      attempt++;
+      try {
+        log(`🚀 Executing ${targetSlot.toUpperCase()} Omnichannel Social syndication [${targetPlatforms.join(", ")}] (Attempt ${attempt}/${maxRetries})...`);
+        postedResult = await runOmnichannel({ platforms: targetPlatforms });
+      } catch (err) {
+        log(`⚠️ Attempt ${attempt} failed: ${err.message}`);
+        if (attempt < maxRetries) {
+          log(`⏳ Waiting 2 minutes before retrying...`);
+          await new Promise((r) => setTimeout(r, 120000));
+        }
+      }
+    }
+
+    if (postedResult && postedResult.success) {
+      const prev = status[targetSlot] || { platforms: {}, catchupCount: 0 };
+      const mergedPlatforms = { ...(prev.platforms || {}), ...(postedResult.results || {}) };
+      const stillMissing = ALL_PLATFORMS.filter((p) => mergedPlatforms[p] !== "SUCCESS");
+      const allSucceeded = stillMissing.length === 0;
+
+      status[targetSlot] = {
+        done: allSucceeded,
+        postedAt: new Date().toISOString(),
+        headline: postedResult.headline || prev.headline,
+        source: postedResult.source || prev.source,
+        url: postedResult.resourceUrl || prev.url,
+        platforms: mergedPlatforms,
+        catchupCount: allSucceeded ? (prev.catchupCount || 0) : (prev.catchupCount || 0) + 1
+      };
+      saveStatus(status);
+
+      if (allSucceeded) {
+        log(`🎉 FULL SUCCESS: ${targetSlot.toUpperCase()} slot published across ALL 4 social media platforms!`);
+      } else {
+        log(`⚠️ PARTIAL SUCCESS: ${targetSlot.toUpperCase()} posted, remaining platforms for auto-retry: [${stillMissing.join(", ")}]`);
+      }
+      log(`📌 Headline: "${status[targetSlot].headline}"`);
+      log(`🔗 Promoted URL: ${status[targetSlot].url}`);
+      log(`📊 Platform Summary: ${JSON.stringify(mergedPlatforms, null, 2)}`);
+    } else {
+      log(`❌ Failed to post ${targetSlot.toUpperCase()} after ${maxRetries} attempts.`);
+      process.exitCode = 1;
+    }
+  } finally {
+    releaseLock();
   }
 }
 

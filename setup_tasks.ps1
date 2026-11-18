@@ -44,7 +44,16 @@ try {
     Write-Host "ℹ️ Note: Logon trigger skipped (Morning & Evening tasks will handle wake-up catchup automatically)." -ForegroundColor Yellow
 }
 
+# 4. Self-Healing Watchdog Task: Every 2 hours (catches up missed slots or partial platform failures)
+try {
+    $watchdogTrigger = New-ScheduledTaskTrigger -Once -At "10:30 AM" -RepetitionInterval (New-TimeSpan -Hours 2) -RepetitionDuration (New-TimeSpan -Days 3650)
+    Register-ScheduledTask -TaskName "EPFO_Omnichannel_Watchdog" -Action $action -Trigger $watchdogTrigger -Settings $settings -Force | Out-Null
+    Write-Host "✅ Registered Task: EPFO_Omnichannel_Watchdog (Self-healing 2-hour watchdog for missed/partial runs)" -ForegroundColor Green
+} catch {
+    Write-Host "ℹ️ Note: Watchdog trigger skipped: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
 Write-Host "`n============================================================" -ForegroundColor Cyan
-Write-Host " All 3 Scheduled Tasks successfully active in Windows!" -ForegroundColor Green
-Write-Host " The bot will automatically post twice daily and catch up whenever your laptop connects to the internet." -ForegroundColor Green
+Write-Host " All 4 Scheduled Tasks successfully active in Windows!" -ForegroundColor Green
+Write-Host " The bot will automatically post twice daily and self-heal any missed platform." -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Cyan

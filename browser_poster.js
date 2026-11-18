@@ -34,13 +34,29 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
   try {
     console.log("🔍 Checking Twitter / X session...");
     await page.goto("https://x.com/home", { waitUntil: "domcontentloaded", timeout: 45000 });
-    await page.waitForTimeout(3000);
 
     const loggedInIndicator = page.locator(
       '[data-testid="SideNav_AccountSwitcher_Button"], a[data-testid="AppTabBar_Home_Link"], [data-testid="SideNav_NewTweet_Button"]'
     ).first();
 
-    const isLoggedIn = await loggedInIndicator.isVisible().catch(() => false);
+    // Properly wait up to 22s for X React SPA hydration (prevents false "not logged in" skips on slow disk/network)
+    let isLoggedIn = false;
+    try {
+      await loggedInIndicator.waitFor({ state: "visible", timeout: 22000 });
+      isLoggedIn = true;
+    } catch (_) {
+      const currentUrl = page.url();
+      if (!currentUrl.includes("/login") && !currentUrl.includes("/i/flow/login")) {
+        console.log("⏳ X.com hydrated slowly; reloading https://x.com/home once to confirm session...");
+        await page.goto("https://x.com/home", { waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => {});
+        try {
+          await loggedInIndicator.waitFor({ state: "visible", timeout: 18000 });
+          isLoggedIn = true;
+        } catch (_) {
+          isLoggedIn = false;
+        }
+      }
+    }
 
     if (!isLoggedIn) {
       if (!interactive) {

@@ -8,7 +8,7 @@ const dns = require("dns");
 const https = require("https");
 const GenAI = require("@google/generative-ai");
 
-const { generateOmnichannelPost, savePostedHeadline } = require("./omnichannel_content");
+const { generateOmnichannelPost, savePostedHeadline, advanceSeriesDay } = require("./omnichannel_content");
 const { generateSocialCard } = require("./social_image_generator");
 const { postToLinkedIn } = require("./linkedin_poster");
 const { postToInstagram } = require("./instagram_poster");
@@ -89,144 +89,88 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
 
   const results = {};
 
+  async function dispatchWithRetry(key, label, emoji, fn) {
+    const maxAttempts = 2;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        log(`${emoji} Dispatching to ${label}${attempt > 1 ? ` (Retry ${attempt}/${maxAttempts})` : ""}...`);
+        const res = await fn();
+        if (res && res.skipped) {
+          results[key] = "SKIPPED: " + res.reason;
+          log(`ℹ️ ${label} skipped: ${res.reason}`);
+          if (attempt < maxAttempts) {
+            log(`⏳ Retrying ${label} in 5s to guard against slow hydration...`);
+            await new Promise((r) => setTimeout(r, 5000));
+            continue;
+          }
+          return;
+        }
+        results[key] = "SUCCESS";
+        log(`✅ ${label} publication complete.`);
+        return;
+      } catch (e) {
+        log(`⚠️ ${label} failed (attempt ${attempt}/${maxAttempts}): ${e.message}`);
+        results[key] = "FAILED: " + e.message;
+        if (attempt < maxAttempts) {
+          log(`⏳ Waiting 5s before retrying ${label}...`);
+          await new Promise((r) => setTimeout(r, 5000));
+        }
+      }
+    }
+  }
+
+  const buildCardOpts = (platform) => ({
+    platform,
+    headline: content.headline,
+    category: content.category,
+    categoryBadge: content.categoryBadge,
+    governanceTag: content.governanceTag,
+    statNumber: content.statNumber,
+    statLabel: content.statLabel,
+    subStat: content.subStat,
+    keyPoints: content.keyPoints,
+    insight: content.insight,
+    resourceTitle: content.resourceTitle,
+    resourceUrl: content.resourceUrl,
+    source: content.source,
+    pubDate: content.pubDate,
+    trendingHashtags: content.trendingHashtags,
+  });
+
   // 1. LinkedIn Publication
   if (platforms.includes("linkedin")) {
-    try {
-      log("💼 Dispatching to LinkedIn...");
-      const cardPath = await generateSocialCard({
-        platform: "linkedin",
-        headline: content.headline,
-        category: content.category,
-        categoryBadge: content.categoryBadge,
-        governanceTag: content.governanceTag,
-        statNumber: content.statNumber,
-        statLabel: content.statLabel,
-        subStat: content.subStat,
-        keyPoints: content.keyPoints,
-        insight: content.insight,
-        resourceTitle: content.resourceTitle,
-        resourceUrl: content.resourceUrl,
-        source: content.source,
-        pubDate: content.pubDate,
-        trendingHashtags: content.trendingHashtags,
-      });
-      const res = await postToLinkedIn(content.linkedin, cardPath, { interactive: false });
-      if (res && res.skipped) {
-        results.linkedin = "SKIPPED: " + res.reason;
-        log(`ℹ️ LinkedIn skipped: ${res.reason}`);
-      } else {
-        results.linkedin = "SUCCESS";
-        log("✅ LinkedIn publication complete.");
-      }
-    } catch (e) {
-      log(`⚠️ LinkedIn failed: ${e.message}`);
-      results.linkedin = "FAILED: " + e.message;
-    }
+    let cardPath = null;
+    await dispatchWithRetry("linkedin", "LinkedIn", "💼", async () => {
+      if (!cardPath) cardPath = await generateSocialCard(buildCardOpts("linkedin"));
+      return await postToLinkedIn(content.linkedin, cardPath, { interactive: false });
+    });
   }
 
   // 2. Instagram Publication
   if (platforms.includes("instagram")) {
-    try {
-      log("📸 Dispatching to Instagram...");
-      const cardPath = await generateSocialCard({
-        platform: "instagram",
-        headline: content.headline,
-        category: content.category,
-        categoryBadge: content.categoryBadge,
-        governanceTag: content.governanceTag,
-        statNumber: content.statNumber,
-        statLabel: content.statLabel,
-        subStat: content.subStat,
-        keyPoints: content.keyPoints,
-        insight: content.insight,
-        resourceTitle: content.resourceTitle,
-        resourceUrl: content.resourceUrl,
-        source: content.source,
-        pubDate: content.pubDate,
-        trendingHashtags: content.trendingHashtags,
-      });
-      const res = await postToInstagram(content.instagram, cardPath, { interactive: false });
-      if (res && res.skipped) {
-        results.instagram = "SKIPPED: " + res.reason;
-        log(`ℹ️ Instagram skipped: ${res.reason}`);
-      } else {
-        results.instagram = "SUCCESS";
-        log("✅ Instagram publication complete.");
-      }
-    } catch (e) {
-      log(`⚠️ Instagram failed: ${e.message}`);
-      results.instagram = "FAILED: " + e.message;
-    }
+    let cardPath = null;
+    await dispatchWithRetry("instagram", "Instagram", "📸", async () => {
+      if (!cardPath) cardPath = await generateSocialCard(buildCardOpts("instagram"));
+      return await postToInstagram(content.instagram, cardPath, { interactive: false });
+    });
   }
 
   // 3. Facebook Publication
   if (platforms.includes("facebook")) {
-    try {
-      log("📢 Dispatching to Facebook...");
-      const cardPath = await generateSocialCard({
-        platform: "facebook",
-        headline: content.headline,
-        category: content.category,
-        categoryBadge: content.categoryBadge,
-        governanceTag: content.governanceTag,
-        statNumber: content.statNumber,
-        statLabel: content.statLabel,
-        subStat: content.subStat,
-        keyPoints: content.keyPoints,
-        insight: content.insight,
-        resourceTitle: content.resourceTitle,
-        resourceUrl: content.resourceUrl,
-        source: content.source,
-        pubDate: content.pubDate,
-        trendingHashtags: content.trendingHashtags,
-      });
-      const res = await postToFacebook(content.facebook, cardPath, { interactive: false });
-      if (res && res.skipped) {
-        results.facebook = "SKIPPED: " + res.reason;
-        log(`ℹ️ Facebook skipped: ${res.reason}`);
-      } else {
-        results.facebook = "SUCCESS";
-        log("✅ Facebook publication complete.");
-      }
-    } catch (e) {
-      log(`⚠️ Facebook failed: ${e.message}`);
-      results.facebook = "FAILED: " + e.message;
-    }
+    let cardPath = null;
+    await dispatchWithRetry("facebook", "Facebook", "📢", async () => {
+      if (!cardPath) cardPath = await generateSocialCard(buildCardOpts("facebook"));
+      return await postToFacebook(content.facebook, cardPath, { interactive: false });
+    });
   }
 
   // 4. Twitter / X Publication
   if (platforms.includes("twitter") || platforms.includes("x")) {
-    try {
-      log("🐦 Dispatching to Twitter / X...");
-      const cardPath = await generateSocialCard({
-        platform: "twitter",
-        headline: content.headline,
-        category: content.category,
-        categoryBadge: content.categoryBadge,
-        governanceTag: content.governanceTag,
-        statNumber: content.statNumber,
-        statLabel: content.statLabel,
-        subStat: content.subStat,
-        keyPoints: content.keyPoints,
-        insight: content.insight,
-        resourceTitle: content.resourceTitle,
-        resourceUrl: content.resourceUrl,
-        source: content.source,
-        pubDate: content.pubDate,
-        trendingHashtags: content.trendingHashtags,
-      });
-      const res = await postThreadViaBrowser(content.twitter, cardPath, { interactive: false });
-      if (res && res.skipped) {
-        results.twitter = "SKIPPED: " + res.reason;
-        log(`ℹ️ Twitter / X skipped: ${res.reason}`);
-      } else {
-        results.twitter = "SUCCESS";
-        log("✅ Twitter / X publication complete.");
-      }
-    } catch (e) {
-      log(`⚠️ Twitter / X failed: ${e.message}`);
-      results.twitter = "FAILED: " + e.message;
-    }
+    let cardPath = null;
+    await dispatchWithRetry("twitter", "Twitter / X", "🐦", async () => {
+      if (!cardPath) cardPath = await generateSocialCard(buildCardOpts("twitter"));
+      return await postThreadViaBrowser(content.twitter, cardPath, { interactive: false });
+    });
   }
 
   // Save run history and recorded posted headline
@@ -234,6 +178,12 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
     try {
       savePostedHeadline(content.headline, content.source);
       log(`📝 Recorded headline "${content.headline}" to posted history.`);
+
+      const anySuccess = Object.values(results).some(v => v === "SUCCESS");
+      if (anySuccess) {
+        const nextDay = advanceSeriesDay();
+        log(`📈 Advanced Series Counter to Day ${nextDay}.`);
+      }
     } catch (_) {}
   }
 

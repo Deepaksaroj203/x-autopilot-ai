@@ -68,8 +68,14 @@ async function postToInstagram(captionText, imagePath, { interactive = false } =
       'svg[aria-label="New post"], svg[aria-label="New Post"], a[href*="/direct/inbox/"], svg[aria-label="Search"], a[href*="/epfcompliance"]'
     ).first();
 
+    let hasNavIndicator = false;
+    try {
+      await loggedInIndicator.waitFor({ state: "visible", timeout: 18000 });
+      hasNavIndicator = true;
+    } catch (_) {
+      hasNavIndicator = false;
+    }
     const isLoginPage = page.url().includes("/login") || await page.locator('input[name="password"], a[href*="/accounts/emailsignup"], button:has-text("Log in"), button:has-text("Log In")').first().isVisible({ timeout: 2000 }).catch(() => false);
-    const hasNavIndicator = await loggedInIndicator.isVisible().catch(() => false);
     const isLoggedIn = hasNavIndicator && !isLoginPage;
 
     if (!isLoggedIn) {
