@@ -109,9 +109,7 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
     await textbox0.click({ force: true });
     await page.waitForTimeout(400);
     await page.keyboard.insertText(thread[0]);
-    await page.waitForTimeout(400);
-    await page.keyboard.press("Escape"); // Dismiss hashtag autocomplete dropdown
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(600);
 
     // Attach image card to Tweet 1
     if (imagePath && fs.existsSync(imagePath)) {
@@ -155,12 +153,18 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
         await nextTextarea.click({ force: true });
         await page.waitForTimeout(400);
         await page.keyboard.insertText(thread[i]);
-        await page.waitForTimeout(400);
-        await page.keyboard.press("Escape"); // Dismiss hashtag dropdown
-        await page.waitForTimeout(800);
+        await page.waitForTimeout(600);
       } else {
         console.warn(`⚠️ Could not spawn thread textarea ${i + 1}; skipping chained tweet to prevent character overflow.`);
       }
+    }
+
+    // Dismiss any accidental 'Save post?' confirmation dialog if present
+    const confirmSheet = page.locator('div[data-testid="confirmationSheetDialog"]').first();
+    if (await confirmSheet.isVisible({ timeout: 1000 }).catch(() => false)) {
+      console.log("ℹ️ Inadvertent confirmation dialog detected; dismissing to retain composer...");
+      await page.keyboard.press("Escape").catch(() => {});
+      await page.waitForTimeout(1000);
     }
 
     // 3. Publish the thread / post atomically
@@ -189,8 +193,22 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
     }
 
     const btnText = await postAllBtn.innerText().catch(() => "Post");
-    console.log(`🚀 Clicking "${btnText}" button to publish full thread...`);
-    await postAllBtn.click();
+    console.log(`🚀 Clicking "${btnText}" button with multi-tier overlay bypass to publish full thread...`);
+    try {
+      await postAllBtn.click({ timeout: 5000 });
+    } catch (clickErr) {
+      console.log(`ℹ️ Standard Twitter Post click intercepted (${clickErr.message.split("\n")[0]}), attempting force click...`);
+      try {
+        await postAllBtn.click({ force: true, timeout: 5000 });
+      } catch (_) {
+        console.log("ℹ️ Executing direct DOM evaluate click for Twitter Post button...");
+        await postAllBtn.evaluate((el) => {
+          el.scrollIntoView();
+          el.click();
+          el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+        });
+      }
+    }
 
     // 4. Confirm submission: Wait for the dialog to detach / close strictly
     console.log("⏳ Waiting for Twitter backend to accept thread submission...");

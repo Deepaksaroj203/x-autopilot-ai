@@ -35,12 +35,14 @@ async function postToFacebook(postText, imagePath = null, { interactive = false 
       headless: false,
       viewport: { width: 1280, height: 850 },
       args: ["--disable-blink-features=AutomationControlled"],
+      timeout: 25000,
     });
   } catch (_) {
     context = await chromium.launchPersistentContext(USER_DATA_DIR, {
       headless: false,
       viewport: { width: 1280, height: 850 },
       args: ["--disable-blink-features=AutomationControlled"],
+      timeout: 25000,
     });
   }
 
@@ -181,8 +183,16 @@ async function postToFacebook(postText, imagePath = null, { interactive = false 
       }
     }
 
-    // Wait for composer dialog to close (confirms submission)
-    await page.locator('div[role="dialog"] div[aria-label="Post"][role="button"]').first().waitFor({ state: "detached", timeout: 20000 }).catch(() => {});
+    // Confirm submission: Verify composer dialog detaches / closes strictly
+    console.log("⏳ Waiting for Facebook composer dialog to close...");
+    const isDetached = await page.locator('div[role="dialog"]').first().waitFor({ state: "detached", timeout: 25000 }).then(() => true).catch(() => false);
+    if (!isDetached) {
+      const isVisible = await postSubmitBtn.isVisible().catch(() => false);
+      if (isVisible) {
+        const dialogText = await page.locator('div[role="dialog"]').first().innerText().catch(() => "");
+        throw new Error(`Facebook Post dialog failed to close after submission. Dialog state: ${dialogText.slice(0, 150)}`);
+      }
+    }
     await page.waitForTimeout(5000);
     console.log("🎉 Post successfully published to Facebook!");
     return { success: true, platform: "facebook" };

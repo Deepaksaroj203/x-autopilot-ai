@@ -113,11 +113,6 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
         if (res && res.skipped) {
           results[key] = "SKIPPED: " + res.reason;
           log(`ℹ️ ${label} skipped: ${res.reason}`);
-          if (attempt < maxAttempts) {
-            log(`⏳ Retrying ${label} in 5s to guard against slow hydration...`);
-            await new Promise((r) => setTimeout(r, 5000));
-            continue;
-          }
           return;
         }
         results[key] = "SUCCESS";
@@ -188,17 +183,15 @@ async function runOmnichannel({ platforms = ["linkedin", "instagram", "facebook"
     });
   }
 
-  // Save run history and recorded posted headline
-  if (content && content.headline) {
+  // Save run history and recorded posted headline only if at least one platform published successfully
+  const anySuccess = Object.values(results).some(v => v === "SUCCESS");
+  if (content && content.headline && anySuccess) {
     try {
       savePostedHeadline(content.headline, content.source);
       log(`📝 Recorded headline "${content.headline}" to posted history.`);
 
-      const anySuccess = Object.values(results).some(v => v === "SUCCESS");
-      if (anySuccess) {
-        const nextDay = advanceSeriesDay();
-        log(`📈 Advanced Series Counter to Day ${nextDay}.`);
-      }
+      const nextDay = advanceSeriesDay();
+      log(`📈 Advanced Series Counter to Day ${nextDay}.`);
     } catch (_) {}
   }
 

@@ -39,12 +39,14 @@ async function postToInstagram(captionText, imagePath, { interactive = false } =
       headless: false,
       viewport: { width: 1280, height: 900 },
       args: ["--disable-blink-features=AutomationControlled"],
+      timeout: 25000,
     });
   } catch (_) {
     context = await chromium.launchPersistentContext(USER_DATA_DIR, {
       headless: false,
       viewport: { width: 1280, height: 900 },
       args: ["--disable-blink-features=AutomationControlled"],
+      timeout: 25000,
     });
   }
 
