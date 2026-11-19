@@ -71,6 +71,17 @@ function generateBeatHtml(beat, index, total) {
     tagBorder = "#00F0FF";
   }
 
+  let bgHtml = "";
+  if (beat.bgImage && fs.existsSync(beat.bgImage)) {
+    try {
+      const b64 = fs.readFileSync(beat.bgImage).toString("base64");
+      bgHtml = `
+        <img src="data:image/jpeg;base64,${b64}" style="position: absolute; top: 0; left: 0; width: 1080px; height: 1920px; object-fit: cover; z-index: 1;" />
+        <div style="position: absolute; top: 0; left: 0; width: 1080px; height: 1920px; background: linear-gradient(180deg, rgba(8,9,14,0.40) 0%, rgba(8,9,14,0.68) 45%, rgba(8,9,14,0.94) 100%); z-index: 1;"></div>
+      `;
+    } catch (_) {}
+  }
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -236,6 +247,7 @@ function generateBeatHtml(beat, index, total) {
   </style>
 </head>
 <body>
+  ${bgHtml}
   <div class="glow-top"></div>
   <div class="safe-container">
     <div class="header-bar">

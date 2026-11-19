@@ -1,5 +1,7 @@
 // script_generator.js — High-Retention Script & Visual Blueprint Synthesizer
 
+const path = require("path");
+const fs = require("fs");
 require("dotenv").config();
 
 async function generateScriptAndBeats({ topic = "Why 80% of EPFO Joint Declarations Get Rejected", genre = "facts_finance", durationSec = 40 }) {
@@ -67,13 +69,34 @@ Format as JSON:
 function generateAlgorithmicScript(topic, genre, durationSec) {
   const isEpfo = /epfo|pf|pension|declaration|compliance/i.test(topic);
   const isCartoon = /cartoon|animation|disney|anime/i.test(topic);
+  const isCat = /\b(cat|cats|kitten|feline|kitty)\b/i.test(topic);
 
   let hook = "";
   let bodySentences = [];
   let stats = [];
   let steps = [];
 
-  if (isEpfo) {
+  if (isCat) {
+    hook = `Stop scrolling! Your cat is not just being weird—they are secretly running psychological experiments on you right now!`;
+    bodySentences = [
+      `Did you know that a cat's purr vibrates at exactly twenty-five to one-hundred-fifty Hertz?`,
+      `That is the exact acoustic frequency medically proven to accelerate bone density growth and heal tissue.`,
+      `Even crazier, adult cats never meow at each other in the wild; they engineered meowing exclusively to manipulate human parental instincts, mimicking the pitch of human babies.`,
+      `And when they knock things off the counter while maintaining direct eye contact, they are actively testing physical gravity and measuring your reaction latency.`,
+      `So remember: you don't own your cat, you are their research subject. Follow for daily mind-blowing animal facts and save this reel for your fellow cat lovers.`
+    ];
+    stats = [
+      { number: "25-150 Hz", label: "Tissue Healing Purr" },
+      { number: "0 Meows", label: "Between Adult Wild Cats" },
+      { number: "30 MPH", label: "Maximum Sprint Speed" },
+      { number: "70%", label: "Of Their Life Spent Asleep" }
+    ];
+    steps = [
+      "Purr vibrations trigger cellular tissue regeneration",
+      "Meowing was evolved specifically to domesticate humans",
+      "Object knocking tests spatial depth & human reflexes"
+    ];
+  } else if (isEpfo) {
     hook = `Stop! If you're submitting an EPFO Joint Declaration, there is an eighty percent chance it gets instantly rejected!`;
     bodySentences = [
       `Most employers and members fail on one critical detail: the Annexure-K wage history mismatch.`,
@@ -157,6 +180,13 @@ function buildBeatsFromScriptData(topic, data, durationSec) {
     const stat = (data.keyStats && data.keyStats[idx % data.keyStats.length]) || { number: "VERIFIED", label: "Official Advisory" };
     const stepText = (data.steps && data.steps[idx % data.steps.length]) || "";
 
+    const isCatTopic = /\b(cat|cats|kitten|feline|kitty)\b/i.test(topic);
+    let bgImage = null;
+    if (isCatTopic) {
+      const catPath = path.join(__dirname, "assets", "cats", `cat_${(idx % 7) + 1}.jpg`);
+      if (fs.existsSync(catPath)) bgImage = catPath;
+    }
+
     beats.push({
       beatIndex: idx + 1,
       beatType,
@@ -168,7 +198,8 @@ function buildBeatsFromScriptData(topic, data, durationSec) {
       subtext: sentence.trim(),
       statNumber: stat.number,
       statLabel: stat.label,
-      stepHighlight: stepText
+      stepHighlight: stepText,
+      bgImage
     });
   });
 
