@@ -1,0 +1,17 @@
+[Script Info]
+Title: Super Viral Word-Pop Subtitles
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Montserrat Black,72,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,1,0,1,6,3,2,60,60,420,1
+Style: ActivePop,Montserrat Black,78,&H002BFDFD,&H00FFFFFF,&H00000000,&HB0000000,-1,0,0,0,108,108,1,0,1,8,4,2,60,60,420,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.10,0:00:00.90,Default,,0,0,0,,{\c&H002BFDFD&}Stop{\c&H00FFFFFF&} {\c&H002BFDFD&}making{\c&H00FFFFFF&} {\c&H002BFDFD&}this{\c&H00FFFFFF&}
+Dialogue: 0,0:00:00.90,0:00:01.70,Default,,0,0,0,,{\c&H002BFDFD&}mistake{\c&H00FFFFFF&} {\c&H002BFDFD&}on{\c&H00FFFFFF&} {\c&H002BFDFD&}your{\c&H00FFFFFF&}
+Dialogue: 0,0:00:01.70,0:00:02.50,Default,,0,0,0,,{\c&H002BFDFD&}PF{\c&H00FFFFFF&} {\c&H002BFDFD&}withdrawal!{\c&H00FFFFFF&}
