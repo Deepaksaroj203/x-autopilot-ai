@@ -21,6 +21,7 @@ daily_runner.log
 omnichannel_posting_status.json
 omnichannel_runner.log
 hermes_memory.json
+series_state.json
 
 # Local tooling & caches
 *.png
