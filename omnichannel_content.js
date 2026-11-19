@@ -348,30 +348,49 @@ Analyze this official regulatory news story:
 - Series Context: "Day ${dayNum} of ${series.seriesTitle}"
 - Viral Myth Hook Reference: "${mythHook}"
 
-STRICT HIGH-ENGAGEMENT VIRAL RULES:
-1. INSTAGRAM (VIRAL REEL/CAROUSEL FORMULA - 145%+ COMMENT CONVERSION):
+STRICT HIGH-ENGAGEMENT VIRAL RULES ACROSS ALL PLATFORMS:
+
+1. LINKEDIN (C-SUITE & HR THOUGHT LEADERSHIP MASTERCLASS — 350-500 WORDS OF HIGH DOMAIN INTELLIGENCE):
+   - Hook: High-impact opening line exposing an expensive regulatory exposure, costly compliance mistake, or financial risk for Indian businesses.
+   - Executive Advisory Badge: '🏛️ [DAY ${dayNum} • STATUTORY COMPLIANCE ADVISORY] ${article.title}'
+   - Regulatory Framework: Governing Act & sections (Section 7A inquiry, Section 7Q @ 12% p.a. simple interest, Section 14B penal damages, Para 68).
+   - Operational Reality: Why portals error out, Annexure-K gets stuck, or ECR remittances fail.
+   - 4-Step Actionable Playbook for Leadership & HR Teams:
+     1️⃣ Pre-filing Wage & Contractor Reconciliation...
+     2️⃣ Digital Ledger & Joint Declaration Validation...
+     3️⃣ Statutory Dispute Mitigation & Escalation Protocol...
+     4️⃣ Proactive Filing Discipline to Avoid Compounding Penalties...
+   - Salaried Member Advisory: What employees must check in their Member Passbook / UAN profile.
+   - Lead Magnet / Comment-to-DM Trigger: 'Want our comprehensive EPFO Audit Checklist & Automated Penal Damages Calculator? Comment "${dmKwLinkedin}" below and our team will send the full resource directly to your message box.'
+   - Live Verification Guide Link: '📌 Read the complete step-by-step statutory breakdown and access free calculators: ${resource.url}'
+   - Strategic Hashtags: 5-6 professional B2B tags (#EPFO #LabourLaw #Compliance #HRLeadership #PayrollManagement #CorporateGovernance).
+
+2. TWITTER 5-PART THREAD (VIRAL REGULATORY ADVISORY THREAD — STRICT CHARACTER LIMITS):
+   - Tweet 1 (Hook + Link + Thread Indicator): [Official Alert] High-stakes headline hook, official alert context, link (${resource.url}), #EPFO #Compliance Thread 👇 (1/5). Strict limit: <= 270 chars.
+   - Tweet 2 (Statutory Problem & Financial Exposure): Governing Act/Sections (7Q, 14B, 7A, EPS-95), exact penal math and employer exposure. (2/5). Strict limit: <= 270 chars. No links.
+   - Tweet 3 (Practical Step-by-Step Resolution): Concrete operational steps for HR teams and salaried members (Joint Declaration, Annexure-K, ECR reconciliation, UAN seeding). (3/5). Strict limit: <= 270 chars. No links.
+   - Tweet 4 (Employer Risk Mitigation & Audit Defense): What CFOs and Trustees must audit monthly to avoid statutory scrutiny and show cause notices. (4/5). Strict limit: <= 270 chars. No links.
+   - Tweet 5 (Conclusion, Helpline & Free Tools CTA): Warning against third-party fraud/OTP sharing, link to free calculators (${resource.url}), #LabourLaw #HRTech #IndiaPayroll (5/5). Strict limit: <= 270 chars.
+
+3. FACEBOOK (IN-DEPTH COMMUNITY & PAYROLL RESOURCE):
+   - Line 1: 'Comment "${dmKwFb}" below to receive our full step-by-step resolution checklist directly in your inbox!'
+   - Clear Plain-Language Breakdown: Explain the issue clearly so that both employees and business owners understand the real impact on their PF and pension.
+   - 3-4 Key Takeaways: Clear bullet points with emojis (📌, ⚖️, 💡, 🛡️).
+   - Step-by-step resolution guide for stuck cases.
+   - Full Link: '👉 Read the complete guide & calculate your eligibility at: ${resource.url}'
+   - Closing engagement question to spark shares and comments.
+   - Hashtags: 4-5 relevant community tags.
+
+4. INSTAGRAM (VIRAL REEL/CAROUSEL FORMULA — HIGH SAVES & COMMENTS):
    - LINE 1 MUST BE COMMENT-TO-DM TRIGGER: 'Comment "${dmKwInsta}" and I\\'ll DM you the official circular PDF & checklist 👇'
    - LINE 2: Empty line.
    - LINE 3: Scroll-stopping pattern interrupt hook: '${mythHook}'
-   - LINES 4-7: 3 numbered points using clean emojis (1️⃣, 2️⃣, 3️⃣) explaining the real calculation/law.
+   - LINES 4-7: 3 numbered points using clean emojis (1️⃣, 2️⃣, 3️⃣) explaining the real statutory rule and math.
    - LINE 8: Series Anchor: 'This is Day ${dayNum} of ${series.seriesTitle}.'
    - LINE 9: Discussion question: 'Did your employer deposit your PF correctly this month? Let\\'s discuss in the comments 👇'
    - LINE 10: '📌 Save this post for your compliance records!'
    - LINE 11: '🔗 Complete guide: ${resource.url} (link in bio: ${profile.websiteUrl})'
    - LINE 12: 5-8 targeted hashtags at the very bottom only.
-2. LINKEDIN (B2B THOUGHT LEADERSHIP):
-   - LINE 1: 'Want our free EPFO Compliance Checklist & Calculator? Comment "${dmKwLinkedin}" below and I\\'ll send it over.'
-   - Executive headline with 'Day ${dayNum} • ${meta.categoryBadge}'.
-   - Statutory background, financial liability calculations, and 3 clear bullet takeaways.
-   - Strategic employer action plan and link to ${resource.url}.
-3. FACEBOOK (COMMUNITY RESOURCE):
-   - LINE 1: 'Comment "${dmKwFb}" and we will send you the complete step-by-step checklist!'
-   - Community-friendly summary, payroll impact, link to ${resource.url}, and closing question.
-4. TWITTER 4-PART THREAD:
-   - Tweet 1 (Hook + Link): Headline hook, regulatory alert, reference link (${resource.url}), #EPFO #Compliance (1/4). Strict limit: <= 255 chars.
-   - Tweet 2 (Statutory & Legal Analysis): Governing statutory sections, employer risks, legal breakdown. (2/4). Strict limit: <= 260 chars. No links.
-   - Tweet 3 (Practical Action Plan): Concrete steps for HR/employers/members (ECR filing, Joint Declaration, exit date correction, UAN seeding). (3/4). Strict limit: <= 260 chars. No links.
-   - Tweet 4 (Conclusion & Relatable Guide): Conclusion, risk mitigation advice, direct guide link (${resource.url}), #LabourLaw #Compliance #HRTech (4/4). Strict limit: <= 255 chars.
 
 Return ONLY a valid JSON object matching this schema:
 {
@@ -405,7 +424,8 @@ Return ONLY a valid JSON object matching this schema:
       "Tweet 1...",
       "Tweet 2...",
       "Tweet 3...",
-      "Tweet 4..."
+      "Tweet 4...",
+      "Tweet 5..."
     ]
   }
 }`;
@@ -456,9 +476,61 @@ Return ONLY a valid JSON object matching this schema:
     source: article.source,
     pubDate: article.pubDate,
     trendingHashtags: meta.trendingHashtags || ["#EPFO", "#Compliance", "#LabourLaw", "#HRTech", "#Payroll"],
-    linkedin: `Want our free EPFO Compliance Checklist & Calculator? Comment "${dmKwLinkedin}" below and I'll send it over.\n\n📢 [Day ${dayNum} • ${meta.categoryBadge}] ${article.title}\n\nKey Strategic Highlights for Leadership & HR Teams:\n• Statutory Framework: Governed under ${meta.governanceTag}.\n• ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n• ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n• ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\n🔗 Comprehensive analysis & guide: ${resource.url}\n\n${(meta.trendingHashtags || ["#Compliance", "#LabourLaw", "#HRLeadership", "#Payroll", "#IndiaBusiness", "#EPFO"]).join(" ")}`,
-    instagram: `Comment "${dmKwInsta}" and I'll DM you the official circular PDF & checklist 👇\n\n${mythHook}\n\nHere is the real statutory breakdown:\n1️⃣ ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n2️⃣ ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n3️⃣ ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\nThis is Day ${dayNum} of ${series.seriesTitle}.\n\nDid your employer deposit your PF on time? Let's discuss in the comments 👇\n\n📌 Save this post for your compliance records!\n🔗 Complete guide: ${resource.url} (link in bio: ${profile.websiteUrl})\n\n${(meta.trendingHashtags || ["#EPFO", "#PFWithdrawal", "#HRCompliance", "#PayrollIndia", "#LabourLaw", "#IndianBusiness"]).join(" ")}`,
-    facebook: `Comment "${dmKwFb}" and we will send you the complete step-by-step checklist!\n\n🔔 Day ${dayNum} Regulatory Update: ${article.title}\n\nKey Highlights:\n• ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n• ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n• ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\n👉 Read our full breakdown and access calculators at: ${resource.url}\n\n${(meta.trendingHashtags || ["#Compliance", "#EPFO", "#LabourLaw", "#BusinessIndia"]).slice(0, 5).join(" ")}`,
+    linkedin: `🚨 Most Indian employers and HR teams don't realize their statutory exposures until an inquiry is initiated under Section 7A or damages are levied under Section 14B.
+
+🏛️ [DAY ${dayNum} • STATUTORY COMPLIANCE ADVISORY]
+${article.title}
+
+📊 The Regulatory Framework & Financial Exposure:
+• Governing Act: ${meta.governanceTag}
+• Direct Financial Liability: Belated monthly remittances trigger automatic simple interest under Section 7Q (12% p.a.) plus statutory penal damages under Section 14B scaling up to 25%.
+• Operational Reality: ${meta.solutionFacts || 'Ensure timely monthly ECR remittance by the 15th to maintain clean audit standing.'}
+
+🔍 Key Strategic Highlights for Leadership & Payroll Teams:
+1️⃣ ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}
+2️⃣ ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}
+3️⃣ ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}
+
+📋 4-Step Strategic Action Plan for Employers:
+• Step 1: Reconcile gross vs. EPF contributory wages across all contractor and payroll ledgers before monthly filing.
+• Step 2: Verify Annexure-K synchronization and electronic transfer requests to avoid employee dispute backlogs.
+• Step 3: Ensure strict Aadhaar-UAN seeding and digital signature certificate (DSC) validity on the Unified Portal.
+• Step 4: Conduct monthly pre-deposit compliance audits rather than relying on year-end financial reconciliation.
+
+💡 What Salaried Employees & Members Must Check:
+• Regularly inspect your monthly Member Passbook to verify that employer deductions match payroll slips.
+• Never disclose UAN passwords, login credentials, or OTPs to unauthorized third parties.
+
+🎁 FREE COMPLIANCE RESOURCE:
+Want our comprehensive EPFO Audit Checklist & Automated Penal Damages Calculator?
+Comment "${dmKwLinkedin}" below and our compliance desk will message you the complete toolkit.
+
+📌 Read our complete verified legal breakdown & worked calculation example:
+👉 ${resource.url}
+
+${(meta.trendingHashtags || ["#EPFO", "#Compliance", "#LabourLaw", "#HRLeadership", "#PayrollManagement", "#CorporateGovernance", "#IndiaBusiness"]).join(" ")}`,
+    instagram: `Comment "${dmKwInsta}" and I'll DM you the official circular PDF & checklist 👇\n\n${mythHook}\n\nHere is the real statutory breakdown every salaried professional and employer must know:\n1️⃣ ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}\n2️⃣ ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}\n3️⃣ ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}\n\nThis is Day ${dayNum} of ${series.seriesTitle}.\n\nDid your employer deposit your PF on time? Let's discuss in the comments 👇\n\n📌 Save this post for your compliance records!\n🔗 Complete guide: ${resource.url} (link in bio: ${profile.websiteUrl})\n\n${(meta.trendingHashtags || ["#EPFO", "#PFWithdrawal", "#HRCompliance", "#PayrollIndia", "#LabourLaw", "#IndianBusiness"]).join(" ")}`,
+    facebook: `📢 Comment "${dmKwFb}" below to get our complete EPFO Compliance Checklist & Resolution Guide sent directly to you!
+
+🔔 [Day ${dayNum} Regulatory Advisory] ${article.title}
+
+Essential Statutory Breakdown for Employers & Employees:
+• Governing Mandate: ${meta.governanceTag}
+• Core Rule: ${meta.solutionFacts || 'Compliance filing deadlines must be strictly maintained to prevent penal interest and damages.'}
+
+📌 Key Highlights & Operational Realities:
+• ${meta.keyPoints[0].badge}: ${meta.keyPoints[0].text}
+• ${meta.keyPoints[1].badge}: ${meta.keyPoints[1].text}
+• ${meta.keyPoints[2].badge}: ${meta.keyPoints[2].text}
+
+💡 Action Plan:
+1. Verify monthly ECR submissions on the EPFO Employer Portal before the 15th.
+2. Cross-check member KYC and Aadhaar seeding to ensure seamless pension transfer processing.
+3. Keep digital records of all Joint Declarations and Annexure-K filings.
+
+👉 Read our full breakdown and access calculators at: ${resource.url}
+
+${(meta.trendingHashtags || ["#Compliance", "#EPFO", "#LabourLaw", "#BusinessIndia", "#Payroll"]).slice(0, 5).join(" ")}`,
     twitter: buildTwitterThread(null, article, meta, profile, resource)
   };
 }
@@ -478,24 +550,25 @@ function buildTwitterThread(rawTwitter, article, meta, profile, resource) {
     list = [rawTwitter];
   }
 
-  // Ensure 4 distinct tweets: Problem -> Legal Breakdown -> Actionable Solution -> Conclusion + Relatable Blog
-  if (list.length < 4) {
+  // Ensure 5 distinct tweets: Problem Hook -> Legal Mechanics -> Operational Solution -> Employer Defense -> Conclusion + Resources
+  if (list.length < 5) {
     const kp0 = meta?.keyPoints?.[0]?.text || "Official regulatory notification released under statutory provisions.";
     const kp1 = meta?.keyPoints?.[1]?.text || "Review payroll allocations to prevent filing discrepancies.";
     const kp2 = meta?.keyPoints?.[2]?.text || "Ensure member records are updated to maintain compliance.";
 
     list = [
-      `1/4 🚨 Compliance Alert: ${article.title.slice(0, 115)}\n\nReview liability & guidelines: ${blogUrl} #EPFO #Compliance`,
-      `2/4 🔍 Legal Analysis:\n• Governed by ${meta?.governanceTag || 'EPF & MP Act 1952'}\n• ${kp0}`,
-      `3/4 💡 Practical Action Plan:\n• ${kp1}\n• ${kp2}`,
-      `4/4 ⚖️ Conclusion: Stay compliant and mitigate statutory liabilities.\n\nRead our comprehensive guide & calculators:\n👉 ${blogUrl}\n\n#LabourLaw #PF #HRIndia`
+      `1/5 [Official Alert] ${article.title.slice(0, 110)}.\n\nMaster the governing statutory rules & employer liabilities.\n\nRead full breakdown: ${blogUrl}\n\n#EPFO #Compliance Thread 👇`,
+      `2/5 🔍 Statutory Mandate & Legal Exposure:\nGoverned under ${meta?.governanceTag || 'EPF & MP Act 1952'}. Belated remittances trigger Section 7Q penal interest (12% p.a.) & Section 14B damages (up to 25%), plus Section 7A inquiry summons.`,
+      `3/5 💡 Practical Operational Solutions:\n• ${kp0}\n• ${kp1}\n• Resolve pending Joint Declarations & Annexure-K mismatches to clear digital transfer blocks.`,
+      `4/5 ⚖️ HR & Employer Compliance Defense:\n• Reconcile contractor PF compliance monthly.\n• Resolve exit date mismatches before full-and-final settlement.\n• Never allow delayed remittances to compound.`,
+      `5/5 🛡️ Member Advisory & Free Resources:\nBeware of fraudulent agents; EPFO never asks for personal passwords or OTPs.\n\nAccess verified calculations & guides:\n👉 ${blogUrl}\n\n#LabourLaw #Payroll #HRIndia`
     ];
   }
 
-  return list.slice(0, 4).map((tweet) => {
+  return list.slice(0, 5).map((tweet) => {
     let t = String(tweet).trim();
-    if (t.length > 255) {
-      t = t.slice(0, 250) + "...";
+    if (t.length > 270) {
+      t = t.slice(0, 265) + "...";
     }
     return t;
   });
