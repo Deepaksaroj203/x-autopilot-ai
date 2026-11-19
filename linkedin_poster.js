@@ -51,22 +51,28 @@ async function postToLinkedIn(postText, imagePath = null, { interactive = false 
     await page.goto("https://www.linkedin.com/feed/", { waitUntil: "domcontentloaded", timeout: 45000 });
 
     const loggedInIndicator = page.locator(
-      'button.share-box-feed-entry__trigger, button:has-text("Start a post"), a[href*="/in/"], nav[aria-label="Primary"]'
+      'div[data-view-name="share-sharebox-focus"], button.share-box-feed-entry__trigger, button:has-text("Start a post"), a[href*="/in/"], nav[aria-label="Primary"]'
     ).first();
 
     let isLoggedIn = false;
     try {
-      await loggedInIndicator.waitFor({ state: "visible", timeout: 20000 });
+      await loggedInIndicator.waitFor({ state: "visible", timeout: 15000 });
       isLoggedIn = true;
     } catch (_) {
       isLoggedIn = false;
     }
 
+    const currentUrl = page.url();
+    const isLoginPage = currentUrl.includes("/login") || currentUrl.includes("/uas/") || currentUrl.includes("/checkpoint") || await page.locator('input[name="session_key"], button:has-text("Sign in")').first().isVisible({ timeout: 2000 }).catch(() => false);
+    if (isLoginPage) {
+      isLoggedIn = false;
+    }
+
     if (!isLoggedIn) {
       if (!interactive) {
-        console.log("ℹ️ LinkedIn session not authenticated. Run setup_sessions.bat to connect. Skipping LinkedIn for this run.");
+        console.log("ℹ️ LinkedIn session not authenticated. Run run_linkedin_bot.bat to connect. Skipping LinkedIn for this run.");
         await context.close();
-        return { success: false, skipped: true, reason: "Awaiting one-time login in setup_sessions.bat" };
+        return { success: false, skipped: true, reason: "Awaiting one-time login in run_linkedin_bot.bat" };
       }
 
       console.log("\n============================================================");
@@ -89,23 +95,26 @@ async function postToLinkedIn(postText, imagePath = null, { interactive = false 
 
     // Click "Start a post" trigger (Supports updated 2026 LinkedIn layout & native dialog)
     const startPostBtn = page.locator(
-      'div[data-view-name="share-sharebox-focus"], div[aria-label="Start a post"], [role="button"]:has-text("Start a post"), p:has-text("Start a post"), button.share-box-feed-entry__trigger'
+      'div[data-view-name="share-sharebox-focus"], button.share-box-feed-entry__trigger, button:has-text("Start a post"), div[aria-label="Start a post"], [role="button"]:has-text("Start a post")'
     ).first();
     await startPostBtn.waitFor({ state: "visible", timeout: 15000 });
     await startPostBtn.click({ force: true });
     await page.waitForTimeout(2000);
 
+    const dialog = page.locator('div[role="dialog"]').first();
+    await dialog.waitFor({ state: "visible", timeout: 15000 });
+
     // Wait for text editor modal (Supports Tiptap ProseMirror & contenteditable)
-    const textEditor = page.locator(
+    const textEditor = dialog.locator(
       'div.tiptap.ProseMirror, div[role="textbox"][contenteditable="true"], div.editor-content [contenteditable="true"]'
     ).first();
     await textEditor.waitFor({ state: "visible", timeout: 15000 });
     await textEditor.click({ force: true });
     await page.waitForTimeout(500);
 
-    // Type post text
+    // Type post text via keyboard keystrokes (required for ProseMirror AST synchronization)
     console.log("✍️ Typing LinkedIn post copy...");
-    await textEditor.fill(postText);
+    await page.keyboard.insertText(postText);
     await page.waitForTimeout(1000);
 
     // Upload image if provided
@@ -114,8 +123,8 @@ async function postToLinkedIn(postText, imagePath = null, { interactive = false 
       try {
         const fileChooserPromise = page.waitForEvent("filechooser", { timeout: 10000 }).catch(() => null);
         
-        // Find media button
-        const mediaBtn = page.locator('button[aria-label="Media"], button:has-text("Media"), button[aria-label*="photo"]').first();
+        // Find media button in dialog
+        const mediaBtn = dialog.locator('button[aria-label*="media" i], button[aria-label*="photo" i], button:has(svg[data-test-icon*="image"]), button.share-promoted-detour-button, button:has-text("Media")').first();
         if (await mediaBtn.isVisible().catch(() => false)) {
           await mediaBtn.click();
         }
@@ -131,8 +140,8 @@ async function postToLinkedIn(postText, imagePath = null, { interactive = false 
         await page.waitForTimeout(3000);
 
         // Click "Next" on media editor dialog
-        const nextBtn = page.locator('button:has-text("Next"), button:has-text("Done")').first();
-        if (await nextBtn.isVisible({ timeout: 6000 }).catch(() => false)) {
+        const nextBtn = page.locator('div[role="dialog"] button:has-text("Next"), div[role="dialog"] button:has-text("Done")').first();
+        if (await nextBtn.isVisible({ timeout: 8000 }).catch(() => false)) {
           await nextBtn.click();
           await page.waitForTimeout(2000);
         }
@@ -143,11 +152,29 @@ async function postToLinkedIn(postText, imagePath = null, { interactive = false 
 
     // Click Post Button
     console.log("🚀 Publishing post to LinkedIn...");
-    const postSubmitBtn = page.locator('button:has-text("Post"), button.share-actions__primary-action').first();
+    const postSubmitBtn = dialog.locator('button:has-text("Post"), button.share-actions__primary-action').first();
     await postSubmitBtn.waitFor({ state: "visible", timeout: 15000 });
-    await postSubmitBtn.click({ force: true });
 
-    await page.waitForTimeout(6000);
+    // Verify button is actually enabled
+    let isLinkedInBtnEnabled = false;
+    for (let w = 0; w < 12; w++) {
+      const ariaDisabled = await postSubmitBtn.getAttribute("aria-disabled").catch(() => null);
+      const isDis = await postSubmitBtn.isDisabled().catch(() => false);
+      if (ariaDisabled !== "true" && !isDis) {
+        isLinkedInBtnEnabled = true;
+        break;
+      }
+      await page.waitForTimeout(1000);
+    }
+
+    if (!isLinkedInBtnEnabled) {
+      throw new Error("LinkedIn Post button is disabled (content may not be registered in ProseMirror).");
+    }
+
+    await postSubmitBtn.click();
+    console.log("⏳ Waiting for LinkedIn post dialog to detach...");
+    await dialog.waitFor({ state: "detached", timeout: 30000 });
+    await page.waitForTimeout(4000);
     console.log("🎉 Post successfully published to LinkedIn!");
     return { success: true, platform: "linkedin" };
 

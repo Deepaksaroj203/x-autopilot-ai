@@ -165,24 +165,37 @@ async function postThreadViaBrowser(thread, imagePath = null, { interactive = fa
 
     // 3. Publish the thread / post atomically
     console.log("⏳ Waiting for Post button to become enabled...");
-    const postAllBtn = dialog.locator('button[data-testid="tweetButton"]').first();
-    await postAllBtn.waitFor({ state: "visible", timeout: 10000 });
+    const postAllBtn = dialog.locator('button[data-testid="tweetButton"], button[data-testid="tweetButtonInline"]').first();
+    await postAllBtn.waitFor({ state: "visible", timeout: 15000 });
 
-    // Wait for active state
-    await page.waitForFunction(() => {
-      const d = document.querySelector('div[role="dialog"][aria-modal="true"]');
-      const btn = d ? d.querySelector('button[data-testid="tweetButton"]') : document.querySelector('button[data-testid="tweetButton"]');
-      return btn && btn.getAttribute("aria-disabled") !== "true" && !btn.disabled;
-    }, { timeout: 15000 }).catch(() => {});
+    // Verify all textboxes have content and check button state
+    const tbCount = await dialog.locator('div[role="textbox"]').count();
+    console.log(`📊 Verified ${tbCount} textboxes in thread compose dialog.`);
+
+    let isPostBtnEnabled = false;
+    for (let waitSec = 0; waitSec < 15; waitSec++) {
+      const ariaDisabled = await postAllBtn.getAttribute("aria-disabled").catch(() => null);
+      const isDis = await postAllBtn.isDisabled().catch(() => false);
+      if (ariaDisabled !== "true" && !isDis) {
+        isPostBtnEnabled = true;
+        break;
+      }
+      await page.waitForTimeout(1000);
+    }
+
+    if (!isPostBtnEnabled) {
+      const alertMsg = await dialog.locator('div[role="alert"], [data-testid*="error"]').allInnerTexts().catch(() => []);
+      throw new Error(`Twitter Post button remains disabled (aria-disabled="true"). Alerts: ${alertMsg.join(" | ") || "Character limit exceeded or empty chained tweet"}`);
+    }
 
     const btnText = await postAllBtn.innerText().catch(() => "Post");
     console.log(`🚀 Clicking "${btnText}" button to publish full thread...`);
-    await postAllBtn.click({ force: true });
+    await postAllBtn.click();
 
-    // 4. Confirm submission: Wait for the dialog to detach / close
+    // 4. Confirm submission: Wait for the dialog to detach / close strictly
     console.log("⏳ Waiting for Twitter backend to accept thread submission...");
-    await dialog.waitFor({ state: "detached", timeout: 35000 }).catch(() => {});
-    await page.waitForTimeout(5000);
+    await dialog.waitFor({ state: "detached", timeout: 35000 });
+    await page.waitForTimeout(4000);
 
     // 5. Verify published thread on live profile
     console.log("🔍 Navigating to @EPFOCompliance profile to verify live publication...");

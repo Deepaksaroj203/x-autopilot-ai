@@ -124,6 +124,16 @@ async function generateSocialCard(opts) {
   const safeBrandName = escapeHtml(brandName);
   const safeBrandHandle = escapeHtml(brandHandle);
 
+  let safeSeriesDay = opts.seriesDay;
+  if (!safeSeriesDay) {
+    try {
+      const sFile = path.join(__dirname, "series_state.json");
+      if (fs.existsSync(sFile)) {
+        safeSeriesDay = JSON.parse(fs.readFileSync(sFile, "utf-8")).currentDay;
+      }
+    } catch (_) {}
+  }
+
   // Parse structured keyPoints: [{ badge, text }]
   const cleanKeyPoints = (Array.isArray(keyPoints) && keyPoints.length > 0 ? keyPoints : [
     { badge: "STATUTORY RULE", text: "Official regulatory advisory released under statutory provisions." },
@@ -543,7 +553,7 @@ async function generateSocialCard(opts) {
     <div class="header-bar">
       <div class="badge-pill">
         <span>${theme.badgeIcon}</span>
-        <span>${safeBadge}</span>
+        <span>${safeSeriesDay ? `DAY ${safeSeriesDay} • ` : ''}${safeBadge}</span>
       </div>
       <div class="source-badge">
         <span>🏛️ ${safeSource} • ${formattedDate}</span>
