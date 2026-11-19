@@ -172,15 +172,34 @@ module.exports = {
 
 if (require.main === module) {
   (async () => {
-    await createSuperReelFromScratch({
-      topic: "EPFO Higher Pension Interest Relief & Faster Settlement 2026",
-      genre: "facts_finance",
-      durationSec: 40
-    });
+    const args = process.argv.slice(2);
+    const getArg = (prefix) => {
+      const match = args.find(a => a.startsWith(prefix));
+      return match ? match.slice(prefix.length).replace(/^["']|["']$/g, "") : null;
+    };
 
-    await clipSuperReelFromYoutube({
-      youtubeUrl: "https://www.youtube.com/watch?v=epfo_sample_longform",
-      maxClips: 3
-    });
+    const mode = getArg("--mode=") || "all";
+    const topic = getArg("--topic=") || "Why 80% of EPFO Joint Declarations Get Rejected";
+    const duration = parseInt(getArg("--duration=") || "40", 10);
+    const genre = getArg("--genre=") || "facts_finance";
+    const style = getArg("--style=") || "hybrid_super_reel";
+    const url = getArg("--url=") || "https://www.youtube.com/watch?v=sample";
+    const clips = parseInt(getArg("--clips=") || "3", 10);
+
+    if (mode === "scratch" || mode === "all") {
+      await createSuperReelFromScratch({
+        topic,
+        genre,
+        durationSec: duration,
+        visualStyle: style
+      });
+    }
+
+    if (mode === "clip" || mode === "all") {
+      await clipSuperReelFromYoutube({
+        youtubeUrl: url,
+        maxClips: clips
+      });
+    }
   })();
 }
