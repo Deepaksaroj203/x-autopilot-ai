@@ -28,3 +28,6 @@ series_state.json
 __pycache__/
 .claude/
 config.bat
+super_reel_engine/renders/
+Wan2GP/
+generate_crlf_hub.js
