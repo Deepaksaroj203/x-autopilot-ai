@@ -10,6 +10,8 @@ SECRETS.js
 .linkedin_user_data
 .instagram_user_data
 .facebook_user_data
+.youtube_user_data
+.youtube_user_data/
 last_error.png
 last_linkedin_error.png
 last_instagram_error.png

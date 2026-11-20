@@ -44,6 +44,14 @@ const PLATFORMS = {
     feedUrl: "https://x.com/home",
     loginPrompt: 'a[href="/login"], [data-testid="loginButton"]',
     indicator: '[data-testid="SideNav_AccountSwitcher_Button"], a[data-testid="AppTabBar_Home_Link"], [data-testid="SideNav_NewTweet_Button"]'
+  },
+  youtube: {
+    name: "YouTube (@arnavsaroj245)",
+    dir: path.join(__dirname, ".youtube_user_data"),
+    url: "https://studio.youtube.com",
+    feedUrl: "https://studio.youtube.com",
+    loginPrompt: 'input[type="email"], a[href*="accounts.google.com"]',
+    indicator: 'button#create-icon, ytcp-button#create-icon, button[aria-label="Create"], #avatar-btn'
   }
 };
 
@@ -130,7 +138,7 @@ async function loginToPlatform(platformKey) {
       const hasIndicator = await page.locator(p.indicator).first().isVisible().catch(() => false);
       const hasLoginPrompt = await page.locator(p.loginPrompt).first().isVisible().catch(() => false);
       const currentUrl = page.url();
-      const isOnLogin = currentUrl.includes("/login") || currentUrl.includes("/emailsignup");
+      const isOnLogin = currentUrl.includes("/login") || currentUrl.includes("/emailsignup") || currentUrl.includes("accounts.google.com");
 
       if (hasIndicator && !hasLoginPrompt && !isOnLogin) {
         console.log(`🎉 Detected active logged-in session on ${p.name}!`);
@@ -183,7 +191,7 @@ async function main() {
     return;
   }
 
-  if (arg === "linkedin" || arg === "instagram" || arg === "facebook" || arg === "twitter") {
+  if (arg === "linkedin" || arg === "instagram" || arg === "facebook" || arg === "twitter" || arg === "youtube") {
     await loginToPlatform(arg);
     return;
   }
@@ -220,10 +228,11 @@ async function main() {
   console.log("  2) Connect Instagram");
   console.log("  3) Connect Facebook");
   console.log("  4) Connect Twitter / X");
-  console.log("  5) Connect All Missing Accounts Sequentially");
+  console.log("  5) Connect YouTube (@arnavsaroj245)");
+  console.log("  6) Connect All Missing Accounts Sequentially");
   console.log("  0) Exit\n");
 
-  const choice = await promptChoice("Enter option [0-5]: ");
+  const choice = await promptChoice("Enter option [0-6]: ");
 
   if (choice === "1") {
     await loginToPlatform("linkedin");
@@ -234,6 +243,8 @@ async function main() {
   } else if (choice === "4") {
     await loginToPlatform("twitter");
   } else if (choice === "5") {
+    await loginToPlatform("youtube");
+  } else if (choice === "6") {
     for (const key of Object.keys(PLATFORMS)) {
       if (!statuses[key]) {
         console.log(`\nStarting setup for ${PLATFORMS[key].name}...`);

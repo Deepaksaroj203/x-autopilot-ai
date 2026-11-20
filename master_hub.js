@@ -37,14 +37,16 @@ function printMenu() {
   console.log("    \x1b[32m9\x1b[0m. 1-Link YouTube Long-to-Short Viral Clipper (Enter URL -> 9:16 Shorts)");
   console.log("   \x1b[32m10\x1b[0m. Compile 1.5s–2.5s Beat Sheet Preview (Timeline JSON Compiler)");
   console.log("   \x1b[32m11\x1b[0m. Generate Vox Documentary Collage Scene (HTML Preview in Browser)");
-  console.log("   \x1b[32m12\x1b[0m. Open Video Renders Output Folder in Windows Explorer\n");
+  console.log("   \x1b[32m12\x1b[0m. Auto-Upload Latest Rendered Short to YouTube (@arnavsaroj245)");
+  console.log("   \x1b[32m13\x1b[0m. Connect YouTube Channel (@arnavsaroj245 1-Time Edge Login)");
+  console.log("   \x1b[32m14\x1b[0m. Open Video Renders Output Folder in Windows Explorer\n");
 
   console.log("\x1b[34m  [C] WEB PLATFORM, WORKSPACE & SYSTEM WATCHDOGS\x1b[0m");
   console.log("  -----------------------------------------------------------------------------");
-  console.log("   \x1b[32m13\x1b[0m. Open Website /automation Hub in Browser");
-  console.log("   \x1b[32m14\x1b[0m. Open Key Workspace in Browser (/automation/workspace)");
-  console.log("   \x1b[32m15\x1b[0m. Check Scheduled Watchdogs & GitHub Actions Runner Status");
-  console.log("   \x1b[32m16\x1b[0m. Run Complete System Diagnostic Health Check\n");
+  console.log("   \x1b[32m15\x1b[0m. Open Website /automation Hub in Browser");
+  console.log("   \x1b[32m16\x1b[0m. Open Key Workspace in Browser (/automation/workspace)");
+  console.log("   \x1b[32m17\x1b[0m. Check Scheduled Watchdogs & GitHub Actions Runner Status");
+  console.log("   \x1b[32m18\x1b[0m. Run Complete System Diagnostic Health Check\n");
 
   console.log("    \x1b[31m0\x1b[0m. Exit Hub");
   console.log("\x1b[36m===============================================================================\x1b[0m\n");
@@ -171,22 +173,30 @@ async function main() {
       await runCommand(`start "" "${outPath}"`);
       await pause();
     } else if (choice === "12") {
+      console.log("\x1b[35m=== AUTONOMOUS YOUTUBE SHORTS UPLOADER (@arnavsaroj245) ===\x1b[0m\n");
+      await runCommand("node", ["youtube_poster.js"]);
+      await pause();
+    } else if (choice === "13") {
+      console.log("\x1b[36m[***] Launching Microsoft Edge for YouTube Studio Login (@arnavsaroj245)...\x1b[0m\n");
+      await runCommand("connect_youtube.bat");
+      await pause();
+    } else if (choice === "14") {
       console.log("\x1b[36m[***] Opening Video Renders Directory in Windows Explorer...\x1b[0m\n");
       const rendersPath = path.join(__dirname, "super_reel_engine", "renders");
       await runCommand(`explorer "${rendersPath}"`);
-    } else if (choice === "13") {
+    } else if (choice === "15") {
       console.log("\x1b[36m[***] Opening /automation Hub in Default Web Browser...\x1b[0m\n");
       await runCommand(`start "" "https://corporatecompliance.in/automation"`);
-    } else if (choice === "14") {
+    } else if (choice === "16") {
       console.log("\x1b[36m[***] Opening Unified Key Workspace in Default Web Browser...\x1b[0m\n");
       await runCommand(`start "" "https://corporatecompliance.in/automation/workspace"`);
-    } else if (choice === "15") {
+    } else if (choice === "17") {
       console.log("\x1b[34m=== SCHEDULED WATCHDOGS & BACKGROUND TASKS ===\x1b[0m\n");
       await runCommand(`powershell -Command "Get-ScheduledTask -TaskName 'EPFO_*', 'GitHub_*' -ErrorAction SilentlyContinue | Select-Object TaskName, State, LastRunTime, NextRunTime | Format-Table -AutoSize"`);
       console.log("\nGitHub Actions Self-Hosted Runner Process:");
       await runCommand(`powershell -Command "Get-Process -Name 'Runner.Listener', 'Runner.Worker' -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, CPU, WorkingSet64 | Format-Table -AutoSize"`);
       await pause();
-    } else if (choice === "16") {
+    } else if (choice === "18") {
       console.log("\x1b[34m=== SYSTEM DIAGNOSTIC HEALTH CHECK ===\x1b[0m\n");
       console.log("[1/5] Node.js Version:", process.version);
       try {

@@ -27,7 +27,8 @@ async function createSuperReelFromScratch({
   genre = "facts_finance",
   durationSec = 40,
   visualStyle = "hybrid_super_reel",
-  autoPlay = true
+  autoPlay = true,
+  autoUploadYoutube = false
 }) {
   console.log(`\n================================================================`);
   console.log(`🎬 MASTER REEL DIRECTOR: Initializing Broadcast Engine (2026)`);
@@ -146,12 +147,37 @@ async function createSuperReelFromScratch({
     }
   }
 
+  // -------------------------------------------------------------
+  // Stage 8: Auto-Upload to YouTube Studio (@arnavsaroj245)
+  // -------------------------------------------------------------
+  let uploadResult = null;
+  if (autoUploadYoutube || process.env.AUTO_UPLOAD_YOUTUBE === "true") {
+    console.log(`\n📤 Initiating autonomous YouTube Shorts upload for @arnavsaroj245...`);
+    try {
+      const { uploadShortToYoutube } = require("../youtube_poster");
+      uploadResult = await uploadShortToYoutube({
+        videoPath: outputMp4Path,
+        title: `${topic} #Shorts #EPFO #Compliance`,
+        description: `Everything you need to know about ${topic}.\n\nVerified guides, statutory calculators & live consultation at https://corporatecompliance.in\n\n#Shorts #EPFO #Compliance #India #Finance #PF`,
+        interactive: false
+      });
+      if (uploadResult && uploadResult.success) {
+        console.log(`✅ Uploaded to YouTube: ${uploadResult.videoUrl}\n`);
+      } else if (uploadResult && uploadResult.skipped) {
+        console.log(`ℹ️ YouTube Upload: ${uploadResult.reason}\n`);
+      }
+    } catch (ytErr) {
+      console.log(`⚠️ YouTube upload error: ${ytErr.message}\n`);
+    }
+  }
+
   return {
     success: true,
     videoPath: outputMp4Path,
     durationSec: compileResult.durationSec,
     beatSheetPath,
-    qa
+    qa,
+    uploadResult
   };
 }
 
