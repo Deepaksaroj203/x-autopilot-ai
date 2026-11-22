@@ -204,6 +204,186 @@ function getPostedHistory() {
   return [];
 }
 
+// Robust Semantic & Keyword Similarity Deduplication
+function getCleanKeywords(text) {
+  const stopwords = new Set([
+    "with", "from", "that", "this", "these", "those", "have", "been", "were", "what",
+    "when", "where", "which", "will", "would", "could", "should", "about", "after",
+    "under", "more", "into", "over", "also", "their", "there", "other", "some", "says",
+    "know", "explains", "explained", "news", "update", "updates", "latest", "today"
+  ]);
+  return (text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 3 && !stopwords.has(w));
+}
+
+function calculateSemanticSimilarity(titleA, titleB) {
+  const wordsA = getCleanKeywords(titleA);
+  const wordsB = getCleanKeywords(titleB);
+  if (wordsA.length === 0 || wordsB.length === 0) return 0;
+
+  const setA = new Set(wordsA);
+  const setB = new Set(wordsB);
+  const intersection = [...setA].filter((w) => setB.has(w)).length;
+  const union = new Set([...setA, ...setB]).size;
+
+  return intersection / union; // Jaccard index
+}
+
+function isDuplicateHeadline(candidateTitle, history, daysThreshold = 14, similarityThreshold = 0.40) {
+  const cTitle = (candidateTitle || "").toLowerCase().trim();
+  const cWords = getCleanKeywords(cTitle);
+  const now = Date.now();
+
+  for (const entry of history) {
+    const prevHeadline = (entry.headline || "").toLowerCase().trim();
+    if (!prevHeadline) continue;
+
+    // 1. Exact or near-exact string match
+    if (cTitle === prevHeadline) return true;
+
+    // Check age of post if postedAt is present
+    if (entry.postedAt) {
+      const ageDays = (now - new Date(entry.postedAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (ageDays > daysThreshold) continue; // Allow revisiting evergreen themes after 14 days
+    }
+
+    // 2. High Jaccard keyword overlap
+    const similarity = calculateSemanticSimilarity(cTitle, prevHeadline);
+    if (similarity >= similarityThreshold) {
+      return true;
+    }
+
+    // 3. Check if 3 or more distinctive keywords overlap
+    const prevWords = new Set(getCleanKeywords(prevHeadline));
+    const commonSignificant = cWords.filter((w) => prevWords.has(w));
+    if (commonSignificant.length >= 3 && (commonSignificant.length / Math.min(cWords.length, prevWords.size)) >= 0.5) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+const EVERGREEN_EPFO_CURRICULUM = [
+  {
+    title: "EPFO Section 7A Inquiries: How Employers Can Prepare Assessment Records and Defend Compliance",
+    description: "Crucial guidance for CFOs and HR on Section 7A quasi-judicial inquiries, summons defense, wage register production, and mitigating penal liabilities.",
+    source: "Statutory Master Guide",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "Joint Declaration Standard Operating Procedure: Correcting Member Name, DoB & Exit Dates",
+    description: "Detailed step-by-step SOP on filing digital Joint Declarations on the Unified Portal to correct demographic errors and date of exit mismatches.",
+    source: "EPFO Official SOP",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "Section 7Q vs Section 14B: Demystifying Penal Interest and Compounding Damages on Belated Remittances",
+    description: "Mathematical breakdown of 12% p.a. simple interest under Section 7Q and up to 25% penal damages under Section 14B on delayed monthly ECR remittances.",
+    source: "EPF & MP Act 1952",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "EDLI Scheme 1976: Calculating the Maximum ₹7 Lakh Life Insurance Benefit for Nominees",
+    description: "Eligibility, formula calculation, and documentation required for claiming up to ₹7,00,000 life assurance benefit under the Employees' Deposit Linked Insurance Scheme.",
+    source: "EDLI Notification",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "EPFO Form 31 Advances: Complete Rulebook on Illness, Housing, and Marriage Grounds",
+    description: "Comprehensive breakdown of non-refundable PF advances under Paragraph 68, eligibility periods, required service length, and auto-settlement modes.",
+    source: "EPFO Scheme Rules",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "Contractor PF Compliance: Principal Employer Liabilities and Independent Verification Audits",
+    description: "How principal employers must verify contractor ECR challans, wage ledgers, and UAN remittances to avoid joint statutory liability under Section 8A.",
+    source: "Labour Law Advisory",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "EPS-95 Higher Pension Scheme: Supreme Court Framework, Pro-Rata Math, and Joint Option Tracking",
+    description: "Deep dive into post-2014 service calculations, wage cap revaluation, and online status tracking for employees opting for pension on actual wages.",
+    source: "Supreme Court Directive",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "Dual Employment & PF Overlaps: Background Verification (BGV) and Resolution via Joint Declarations",
+    description: "Resolving overlapping service periods in Member Passbooks, Annexure-K updates, and rectifying moonlighting flags during corporate background checks.",
+    source: "EPFO Digital Governance",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "EPFO Inoperative Accounts & Automatic Claim Settlement Rules: Everything Salaried Workers Must Know",
+    description: "Statutory rules governing accounts without deposits for over 36 months, interest crediting until age 58, and auto-settlement caps for small balances.",
+    source: "EPFO CBT Norms",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "UAN Seeding Mandate: Aadhaar, Bank Account Verification & DSC Expiry Troubleshooting",
+    description: "Best practices for employers to ensure error-free Member profile authentication, avoiding DSC token expiry errors, and resolving KYC rejections.",
+    source: "Unified Portal Manual",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "Voluntary Provident Fund (VPF): Maximizing Tax-Free Retirement Corpus Beyond 12% Contribution",
+    description: "How employees can voluntarily contribute up to 100% of basic + DA to earn 8.25% interest with EEE tax status up to the ₹2.5 Lakh annual threshold.",
+    source: "Personal Finance & Tax Guide",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "International Workers Under EPFO: Social Security Agreements (SSA) and Certificate of Coverage Norms",
+    description: "Statutory guidelines, contribution exemptions, and detached worker Certificate of Coverage (CoC) procedures under bilateral Social Security Agreements.",
+    source: "Ministry of External Affairs / EPFO",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "Exempted PF Trusts vs Unexempted Establishments: Annual Audit, Tax, and Transfer Norms",
+    description: "Compliance obligations, investment patterns, and transfer formalities for establishments operating their own private Provident Fund trusts.",
+    source: "Official Gazette Norms",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "EPFO Electronic Challan cum Return (ECR) Version 2.0: Common Errors & Reconciliation Checklists",
+    description: "Resolving TRRN generation errors, duplicate member warnings, wage ceiling adjustments, and missed contribution reconciliation before the 15th.",
+    source: "Employer Portal Advisory",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  },
+  {
+    title: "Death Claims Under EPFO: Fast-Track Settlement via Form 20 and Form 5IF Without Broker Intermediaries",
+    description: "Guidance for legal heirs and nominees on expedited settlement of Provident Fund, Pension (Form 10D), and Insurance claims under EDLI.",
+    source: "Grievance Redressal Cell",
+    daysAgo: 1,
+    pubDate: new Date().toISOString()
+  }
+];
+
+function getNextUnpostedEvergreenTopic(history) {
+  for (const topic of EVERGREEN_EPFO_CURRICULUM) {
+    if (!isDuplicateHeadline(topic.title, history, 14, 0.40)) {
+      return topic;
+    }
+  }
+  return EVERGREEN_EPFO_CURRICULUM[0];
+}
+
 function savePostedHeadline(headline, source = "", pubDate = "") {
   try {
     const history = getPostedHistory();
@@ -215,18 +395,68 @@ function savePostedHeadline(headline, source = "", pubDate = "") {
   }
 }
 
+/**
+ * Fetches today's legally verified statutory briefing from the local EPFO Intelligence Gateway.
+ * Endpoint: http://127.0.0.1:8000/v1/social/daily-briefing
+ */
+async function fetchEpfoIntelligenceBriefing() {
+  const url = process.env.EPFO_INTELLIGENCE_API_URL || "http://127.0.0.1:8000/v1/social/daily-briefing";
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { "X-API-Key": "epfo-admin-key-2026" }
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      console.log(`⚖️ [EPFO Intelligence Gateway] Connected! Loaded verified briefing on: "${data.topic}"`);
+      return data;
+    }
+  } catch (err) {
+    // Graceful silent fallback if gateway service is offline
+  }
+  return null;
+}
+
 // Generate an authoritative 3-part Twitter Thread with exact solution and blog link
 async function generateEpfoTweet(genAI) {
+  // PRIORITY 0: Check EPFO Intelligence Gateway for verified statutory briefings
+  const gatewayBriefing = await fetchEpfoIntelligenceBriefing();
+  if (gatewayBriefing && gatewayBriefing.twitter_thread && gatewayBriefing.twitter_thread.length > 0) {
+    const threadHeadline = `${gatewayBriefing.topic} [Statutory Authority: ${gatewayBriefing.statutory_reference}]`;
+    const history = getPostedHistory();
+    if (!isDuplicateHeadline(threadHeadline, history)) {
+      console.log(`\n⚖️ PRIORITY 0 ACTIVE: Using 100% verified statutory briefing from EPFO Intelligence System!`);
+      const thread = gatewayBriefing.twitter_thread;
+      savePostedHeadline(threadHeadline, "EPFO Intelligence Gateway", new Date().toISOString());
+      return {
+        thread,
+        tweetText: thread[0],
+        insight: gatewayBriefing.topic,
+        headline: threadHeadline,
+        source: "EPFO Statutory Intelligence System",
+        pubDate: new Date().toISOString(),
+        resourceUrl: "https://corporatecompliance.in/epfo",
+        resourceTitle: "EPFO Statutory Compliance Master Guide",
+        instagramCaption: gatewayBriefing.instagram_caption,
+        linkedinPost: gatewayBriefing.linkedin_post,
+      };
+    } else {
+      console.log(`ℹ️ [EPFO Intelligence Gateway] Today's statutory briefing already posted. Checking RSS news candidates...`);
+    }
+  }
+
   const articles = await fetchTopImpressionEpfoNews();
   const history = getPostedHistory();
-  const postedSet = new Set(history.map((h) => h.headline.toLowerCase().trim()));
 
   const scoredArticles = articles
     .map(scoreArticle)
-    .filter((a) => !postedSet.has(a.title.toLowerCase().trim()))
+    .filter((a) => !isDuplicateHeadline(a.title, history))
     .sort((a, b) => b.score - a.score);
 
-  console.log(`📊 Filtered to ${scoredArticles.length} unposted candidate stories.`);
+  console.log(`📊 Filtered to ${scoredArticles.length} unposted candidate stories (semantic deduplication active).`);
 
   // Hierarchical Tier Separation:
   // Tier 0: Official (PIB, Gazette, @officialepfo) -> Checked FIRST!
@@ -247,7 +477,7 @@ async function generateEpfoTweet(genAI) {
     console.log(`\n📰 PRIORITY 2 ACTIVE: No unposted official releases available. Checking Mainstream Media (${tier1Candidates.length} available)...`);
     candidatePool = tier1Candidates;
     tierLabel = "Mainstream Media (The Economic Times, Mint, CNBC, BS, TOI)";
-  } else {
+  } else if (tier2Candidates.length > 0) {
     console.log(`\n🌐 PRIORITY 3 ACTIVE: Checking Online Blogs & Reference Portals (${tier2Candidates.length} available)...`);
     candidatePool = tier2Candidates;
     tierLabel = "Online Media / Reference Blogs";
@@ -302,12 +532,14 @@ Return JSON: { "selectedIndex": <number>, "selectedHeadline": "<title>" }`;
     }
   }
 
-  // Fallback topic if no unposted RSS stories available
+  // Fallback to fresh unposted topic from Evergreen Master Curriculum if no news available
   if (!selectedHeadline) {
-    selectedHeadline = "EPFO Sets October 31 Deadline for Filing ECR Under Revised Wage Ceiling";
-    selectedSource = "🏛️ Press Information Bureau (PIB)";
-    selectedPubDate = new Date().toISOString();
-    selectedTierName = "Official Verified (PIB)";
+    const evergreen = getNextUnpostedEvergreenTopic(history);
+    selectedHeadline = evergreen.title;
+    selectedSource = evergreen.source;
+    selectedPubDate = evergreen.pubDate || new Date().toISOString();
+    selectedTierName = "Statutory Master Curriculum";
+    console.log(`🌿 Fresh Evergreen Topic Selected: ${selectedHeadline}`);
   }
 
   // Dynamically synchronize live website resources from corporatecompliance.in
@@ -327,38 +559,42 @@ Source Authority: "${selectedTierName}"
 Topic Facts & Actionable Solution: "${resource.solutionFacts}"
 Target Blog/Tool Guide URL: "${resource.url}"
 
-CRITICAL RULES FOR EACH TWEET:
+CRITICAL MANDATE FOR THIS THREAD:
+Every single tweet in this 5-tweet thread MUST BE 100% EXCLUSIVELY about the exact headline topic: "${selectedHeadline}".
+NEVER drift into generic boilerplate (NEVER mention unrelated Section 7A summons, 7Q/14B penal damages, contractor ledgers, or Joint Declarations unless the headline is specifically about them).
 
-1. TWEET 1 (Subject Hook, Core Context & Direct Website Reference):
-   - Announce the subject and news clearly according to the headline.
+Follow this STRICT 5-TWEET PROGRESSION:
+
+1. TWEET 1 (Headline Hook & Topic Introduction — ZERO EXTERNAL LINKS):
+   - Announce the exact news headline clearly with a compelling, high-impact hook.
    - If Source is Official (PIB, Gazette, @officialepfo), prefix authoritatively (e.g. "[Official PIB Alert]" or "[Official Gazette Notice]").
-   - MUST INCLUDE the website reference link: "${resource.cta} ${resource.url}"
    - Include hashtags: "#EPFO #PFCompliance"
    - End with: "Thread 👇 (1/5)"
-   - STRICT LENGTH: Under 260 characters (the URL automatically counts as 23 characters).
+   - STRICT ALGORITHMIC RULE: DO NOT INCLUDE ANY LINKS IN TWEET 1 (X/Twitter algorithm heavily suppresses root tweets with external URLs).
+   - STRICT LENGTH: Under 260 characters.
 
-2. TWEET 2 (Background Context & Member/Employer Impact):
-   - Explain the statutory background, why this issue occurs, and who is affected (members or employers).
-   - Detail the practical compliance impact.
+2. TWEET 2 (Core Topic Explanation & All About The News):
+   - Deep-dive strictly into this specific headline topic.
+   - Explain what this update/rule is, who is affected (salaried employees, retirees, or employers), and why it matters right now.
    - End with: "(2/5)"
    - STRICT LENGTH: Under 265 characters. NO links.
 
-3. TWEET 3 (Actionable Step-by-Step Solution / How-To):
-   - Provide the EXACT procedural steps, official numbers (e.g. WhatsApp +91 8796441800), forms, or portal steps from the Topic Facts.
+3. TWEET 3 (How-To / Step-by-Step Practical Implementation):
+   - Provide the EXACT procedural steps, portal actions, forms, or guidelines for how to implement or benefit from this specific topic.
    - End with: "(3/5)"
    - STRICT LENGTH: Under 265 characters. NO links.
 
-4. TWEET 4 (Employer Responsibilities, Penalties & Compliance Math):
-   - Specific details on employer responsibilities, wage ceilings, damages/interest (14B/7Q), or filing deadlines.
-   - Include relevant hashtags (e.g. "#LabourLaw #Payroll").
+4. TWEET 4 (Pros, Cons & Critical Caveats):
+   - An objective breakdown of the Pros (key benefits/advantages) vs Cons (limitations, eligibility criteria, tax impact, or delay risks) strictly regarding this topic.
+   - Include relevant hashtags matching the topic (e.g. "#LabourLaw #Payroll").
    - End with: "(4/5)"
    - STRICT LENGTH: Under 265 characters. NO links.
 
-5. TWEET 5 (Caveats, Fraud Warnings & Website Promotion CTA):
-   - Critical caveats, read-only limits, or scam warnings (e.g. never share OTPs, beware of fake numbers).
-   - Direct call-to-action promoting the website: "Free statutory calculators & guides: https://corporatecompliance.in"
+5. TWEET 5 (Conclusion, Website Attraction & Resource Link + Hashtags):
+   - Concluding summary on this topic + warning against fraudulent agents/OTPs.
+   - Direct call-to-action promoting the verified blog resource with exact link: "${resource.cta} ${resource.url}"
    - End with: "#EPFO #PFCompliance #HRIndia (5/5)"
-   - STRICT LENGTH: Under 260 characters (the URL counts as 23 characters).
+   - STRICT LENGTH: Under 260 characters (the URL automatically counts as 23 characters).
 
 6. CARD INSIGHT:
    - One crisp sentence (under 115 characters) summarizing the core statutory rule for the high-res infographic card.
@@ -392,12 +628,13 @@ Return JSON in this exact schema:
     cardInsight = (threadData.cardInsight || tweet1.slice(0, 110)).trim();
   } else {
     console.log("📋 Using high-fidelity programmatic thread fallback (100% topic-specific)...");
-    const solFacts = (resource && resource.solutionFacts) ? resource.solutionFacts : "Review establishment compliance parameters and timely ECR filings.";
-    tweet1 = `1/5 🚨 [${selectedTierName.includes("Official") ? "Official Alert" : "Compliance Notice"}] ${selectedHeadline.slice(0, 110)}\n\nExplore full breakdown: ${resource.url} #EPFO #Compliance`;
-    tweet2 = `2/5 🔍 Statutory Background: Provisions under the EPF & MP Act 1952 govern establishment liabilities, wage ceiling thresholds, and timely remittances.`;
-    tweet3 = `3/5 💡 Solution & Practical Steps: ${solFacts.slice(0, 240)}`;
-    tweet4 = `4/5 ⚖️ Penal Damages & Compliance Math: Section 7Q simple interest @ 12% p.a. and Section 14B compounding damages apply to late remittances. Avoid prosecution via timely filings. #LabourLaw #Payroll`;
-    tweet5 = `5/5 📌 Free Tools & Verification: Access statutory calculators and master guides at ${resource.url} #EPFO #PFCompliance #HRIndia`;
+    const solFacts = (resource && resource.solutionFacts) ? resource.solutionFacts : "Review official guidelines and portal options.";
+    const cleanH = selectedHeadline.slice(0, 110);
+    tweet1 = `1/5 🚨 [${selectedTierName.includes("Official") ? "Official Alert" : "Compliance Notice"}] ${cleanH}.\n\nEverything you must know: practical how-to steps, pros & cons, and key takeaways.\n\n#EPFO #Compliance Thread 👇`;
+    tweet2 = `2/5 📌 What This Update Means:\nDeep-dive into ${cleanH}:\n• Purpose: Official statutory initiative to streamline member and establishment processes.\n• Scope: Applies directly to eligible workforce members across covered establishments.`;
+    tweet3 = `3/5 🛠️ Practical How-To Steps:\n1. Log in to the official Member/Employer Portal.\n2. Navigate to Online Services & verify seeded KYC details.\n3. ${solFacts.slice(0, 120)}\n4. Monitor status online.`;
+    tweet4 = `4/5 ⚖️ Pros, Cons & Key Considerations:\n✅ Pros: Simplified processing, greater autonomy & reduced paperwork.\n⚠️ Watch out: Unverified details or incorrect portal entries can cause delays. Double-check before submitting.`;
+    tweet5 = `5/5 📌 Free Tools & Complete Breakdown:\nAccess verified calculators and the full step-by-step master guide:\n👉 ${resource.url}\n\n#EPFO #PFCompliance #HRIndia`;
     cardInsight = selectedHeadline.slice(0, 110);
   }
 
@@ -433,5 +670,10 @@ module.exports = {
   getEpfoNewsPool: fetchTopImpressionEpfoNews,
   getPostedHistory,
   savePostedHeadline,
+  fetchEpfoIntelligenceBriefing,
   generateEpfoTweet,
+  isDuplicateHeadline,
+  calculateSemanticSimilarity,
+  EVERGREEN_EPFO_CURRICULUM,
+  getNextUnpostedEvergreenTopic,
 };
