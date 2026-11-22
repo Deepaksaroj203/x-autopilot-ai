@@ -9,7 +9,7 @@ const { chromium } = require("playwright");
 
 const USER_DATA_DIR = path.join(__dirname, ".youtube_user_data");
 const HISTORY_FILE = path.join(__dirname, "youtube_upload_history.json");
-const TARGET_CHANNEL = process.env.YOUTUBE_CHANNEL || "@arnavsaroj245";
+const TARGET_CHANNEL = process.env.YOUTUBE_CHANNEL || "@arnavsaroj2415";
 
 function log(msg) {
   const ts = new Date().toISOString();
@@ -293,10 +293,30 @@ if (require.main === module) {
 
     if (isConnect) {
       console.log(`\nStarting interactive YouTube Studio session login for ${TARGET_CHANNEL}...`);
-      await uploadShortToYoutube({
-        videoPath: path.join(__dirname, "super_reel_engine", "renders", "super_reel_1795106208302.mp4"),
-        interactive: true
-      });
+      let context;
+      try {
+        context = await chromium.launchPersistentContext(USER_DATA_DIR, {
+          channel: "msedge",
+          headless: false,
+          viewport: { width: 1366, height: 900 },
+          args: ["--disable-blink-features=AutomationControlled"]
+        });
+      } catch (_) {
+        context = await chromium.launchPersistentContext(USER_DATA_DIR, {
+          headless: false,
+          viewport: { width: 1366, height: 900 },
+          args: ["--disable-blink-features=AutomationControlled"]
+        });
+      }
+      const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
+      console.log("Navigating to https://studio.youtube.com...");
+      await page.goto("https://studio.youtube.com", { waitUntil: "domcontentloaded", timeout: 60000 });
+      console.log(`\nPlease complete sign-in for ${TARGET_CHANNEL} in the opened Edge browser window.`);
+      console.log("Press Ctrl+C or close the browser when finished.");
+      await page.waitForURL(/studio\.youtube\.com/, { timeout: 600000 }).catch(() => {});
+      await page.waitForTimeout(5000);
+      await context.close();
+      console.log("✅ YouTube session preserved in .youtube_user_data.");
       return;
     }
 
