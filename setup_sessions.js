@@ -22,12 +22,12 @@ const PLATFORMS = {
     indicator: 'a[href*="/in/"], nav[aria-label="Primary"]'
   },
   instagram: {
-    name: "Instagram",
+    name: "Instagram (@corporatecomplaince)",
     dir: path.join(__dirname, ".instagram_user_data"),
     url: "https://www.instagram.com/accounts/login/",
     feedUrl: "https://www.instagram.com/",
     loginPrompt: 'input[name="password"], a[href*="/accounts/login"], a[href*="/accounts/emailsignup/"], button:has-text("Log in"), button:has-text("Log In")',
-    indicator: 'svg[aria-label="New post"], svg[aria-label="New Post"], a[href*="/direct/inbox/"], svg[aria-label="Search"], svg[aria-label="Explore"], a[href*="/epfcompliance"]'
+    indicator: 'svg[aria-label="New post"], svg[aria-label="New Post"], a[href*="/direct/inbox/"], svg[aria-label="Search"], svg[aria-label="Explore"], a[href*="/corporatecomplaince"]'
   },
   facebook: {
     name: "Facebook",

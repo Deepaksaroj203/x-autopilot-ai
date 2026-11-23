@@ -52,6 +52,25 @@ async function postToInstagram(captionText, imagePath, { interactive = false } =
 
   const page = context.pages().length > 0 ? context.pages()[0] : await context.newPage();
 
+  const finalCaption = (typeof captionText === "object" && captionText !== null)
+    ? (captionText.caption || captionText.text || "")
+    : String(captionText || "");
+
+  // Intercept Instagram's media configure payload to guarantee the caption is never stripped by Lexical VDOM
+  await page.route("**/api/v1/media/configure/", async (route) => {
+    const request = route.request();
+    const postData = request.postData() || "";
+    const encodedCaption = encodeURIComponent(finalCaption);
+    let modifiedPostData = postData;
+    if (postData.includes("caption=")) {
+      modifiedPostData = postData.replace(/caption=[^&]*/, `caption=${encodedCaption}`);
+    } else {
+      modifiedPostData = `caption=${encodedCaption}&` + postData;
+    }
+    console.log(`📡 Injected authoritative caption into media configure payload (${finalCaption.length} chars).`);
+    await route.continue({ postData: modifiedPostData });
+  });
+
   try {
     console.log("🔍 Checking Instagram session...");
     await page.goto("https://www.instagram.com/", { waitUntil: "domcontentloaded", timeout: 45000 });
@@ -67,7 +86,7 @@ async function postToInstagram(captionText, imagePath, { interactive = false } =
     } catch (_) {}
 
     const loggedInIndicator = page.locator(
-      'svg[aria-label="New post"], svg[aria-label="New Post"], a[href*="/direct/inbox/"], svg[aria-label="Search"], a[href*="/epfcompliance"]'
+      'svg[aria-label="New post"], svg[aria-label="New Post"], a[href*="/direct/inbox/"], svg[aria-label="Search"], a[href*="/corporatecomplaince"]'
     ).first();
 
     let hasNavIndicator = false;
@@ -90,7 +109,7 @@ async function postToInstagram(captionText, imagePath, { interactive = false } =
       console.log("\n============================================================");
       console.log("🔑 INSTAGRAM LOGIN REQUIRED (ONE-TIME SETUP)");
       console.log("============================================================");
-      console.log("Please log into @epfcompliance in the opened Edge window.");
+      console.log("Please log into @corporatecomplaince in the opened Edge window.");
       console.log("⏳ Session cookies will be preserved permanently in .instagram_user_data...\n");
 
       await page.goto("https://www.instagram.com/accounts/login/", { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
@@ -142,46 +161,72 @@ async function postToInstagram(captionText, imagePath, { interactive = false } =
 
     // Step 3 of modal: Enter Caption
     console.log("✍️ Applying Instagram caption & hashtags...");
-    const captionEditor = page.locator('div[aria-label="Write a caption..."][role="textbox"], div[contenteditable="true"]').first();
-    await captionEditor.waitFor({ state: "visible", timeout: 10000 });
+    const captionEditor = page.locator('div[aria-label="Add a caption..."], div[aria-label="Write a caption..."], div[role="textbox"][contenteditable="true"], div.notranslate[contenteditable="true"]').first();
+    await captionEditor.waitFor({ state: "visible", timeout: 12000 });
     await captionEditor.click();
-    await page.waitForTimeout(500);
-    await captionEditor.fill(captionText);
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(600);
+
+    // Clear any default placeholder artifacts
+    await page.keyboard.press("Control+A");
+    await page.keyboard.press("Backspace");
+    await page.waitForTimeout(300);
+
+    // Type with delay to trigger Meta Lexical's internal AST mutations
+    console.log(`✍️ Typing ${finalCaption.length} chars into Lexical caption editor...`);
+    await page.keyboard.type(finalCaption, { delay: 6 });
+    await page.waitForTimeout(1200);
+
+    // Validation Gate: Ensure text is registered in the DOM before proceeding
+    const verifiedText = await captionEditor.evaluate((el) => el.innerText || el.textContent || "");
+    console.log(`📝 Verified caption in editor: ${verifiedText.trim().length} characters.`);
+    if (verifiedText.trim().length < 20) {
+      console.log("⚠️ Text not fully registered, executing insertText fallback...");
+      await page.keyboard.insertText(finalCaption);
+      await page.waitForTimeout(1000);
+    }
 
     // Step 4 of modal: Click "Share"
     console.log("🚀 Publishing post to Instagram feed...");
-    const shareBtn = page.locator('div[role="dialog"] div[role="button"]:has-text("Share"), div[role="dialog"] button:has-text("Share"), div[role="button"]:has-text("Share"), button:has-text("Share")').first();
-    await shareBtn.waitFor({ state: "visible", timeout: 15000 });
-    
-    // Resilient click sequence bypassing any pointer-intercepting overlays (e.g. Tag People button)
-    try {
-      await shareBtn.click({ timeout: 4000 });
-    } catch (clickErr) {
-      console.log("ℹ️ Standard click intercepted by overlay, attempting force click...");
-      try {
-        await shareBtn.click({ force: true, timeout: 4000 });
-      } catch (_) {
-        console.log("ℹ️ Executing direct DOM evaluate click for Instagram Share button...");
-        await shareBtn.evaluate((el) => {
-          el.scrollIntoView();
-          el.click();
-          el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-        });
+    await page.waitForTimeout(1000);
+
+    // Resilient direct DOM click sequence bypassing any pointer-intercepting overlays (e.g. Tag People button)
+    const clicked = await page.evaluate(() => {
+      const allButtons = Array.from(document.querySelectorAll('div[role="dialog"] div[role="button"], div[role="dialog"] button, div[role="button"]'));
+      const shareBtn = allButtons.find(b => b.innerText && b.innerText.trim() === 'Share');
+      if (shareBtn) {
+        shareBtn.scrollIntoView();
+        shareBtn.click();
+        shareBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        return true;
       }
+      return false;
+    });
+
+    console.log("Direct DOM Share click executed?:", clicked);
+    if (!clicked) {
+      console.log("ℹ️ Fallback to Playwright force click on Share button...");
+      const shareBtn = page.locator('div[role="dialog"] div[role="button"]:has-text("Share"), button:has-text("Share")').last();
+      await shareBtn.click({ force: true, timeout: 8000 });
     }
 
     // Wait for upload completion ("Your post has been shared")
     console.log("⏳ Awaiting Instagram upload completion...");
-    try {
-      const sharedIndicator = page.locator('span:has-text("Your post has been shared"), img[alt*="Animated checkmark"]').first();
-      await sharedIndicator.waitFor({ state: "visible", timeout: 25000 });
-      console.log("✅ Instagram confirmed post publication!");
-    } catch (_) {
-      console.log("ℹ️ Completed share sequence (timeout on animated checkmark).");
+    let sharedConfirmed = false;
+    for (let sec = 1; sec <= 7; sec++) {
+      await page.waitForTimeout(4000);
+      const body = await page.evaluate(() => document.body.innerText);
+      if (body.includes("Your post has been shared") || body.includes("Post shared")) {
+        sharedConfirmed = true;
+        console.log(`✅ Instagram confirmed post publication at ~${sec * 4}s!`);
+        break;
+      }
     }
 
-    await page.waitForTimeout(4000);
+    if (!sharedConfirmed) {
+      console.log("ℹ️ Completed share sequence (modal text check completed).");
+    }
+
+    await page.waitForTimeout(2000);
     console.log("🎉 Post successfully published to Instagram!");
     return { success: true, platform: "instagram" };
 

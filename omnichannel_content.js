@@ -8,7 +8,9 @@ const {
   fetchTopImpressionEpfoNews,
   scoreArticle,
   getPostedHistory,
-  savePostedHeadline
+  savePostedHeadline,
+  isDuplicateHeadline,
+  getNextUnpostedEvergreenTopic
 } = require("./epfo_content");
 const {
   syncCorporateResources,
@@ -275,23 +277,31 @@ async function generateOmnichannelPost(genAI, targetPlatform = "all") {
   const profile = getActiveProfile();
   let article = null;
 
-  // 1. Ingest verified regulatory news and filter out already posted stories
+  // 1. Ingest verified regulatory news and filter out already posted stories with semantic deduplication
   if (profile.id === "epfo") {
     try {
       const pool = await fetchTopImpressionEpfoNews();
       const history = getPostedHistory();
-      const postedSet = new Set(history.map((h) => (h.headline || "").toLowerCase().trim()));
 
       const scored = pool
         .map(scoreArticle)
-        .filter((a) => !postedSet.has((a.title || "").toLowerCase().trim()))
+        .filter((a) => !isDuplicateHeadline(a.title, history))
         .sort((a, b) => b.score - a.score);
 
       if (scored.length > 0) {
         article = scored[0];
         console.log(`🎯 Omnichannel selected top unposted story: [Score: ${article.score}] ${article.title}`);
-      } else if (pool.length > 0) {
-        article = pool[0];
+      } else {
+        console.log("ℹ️ No unposted candidate in current RSS news pool. Selecting next topic from Statutory Master Curriculum...");
+        const evergreen = getNextUnpostedEvergreenTopic(history);
+        article = {
+          title: evergreen.title,
+          description: evergreen.description,
+          link: profile.websiteUrl,
+          source: evergreen.source,
+          pubDate: evergreen.pubDate || new Date().toISOString()
+        };
+        console.log(`🌿 Fresh Evergreen Topic Selected: "${article.title}"`);
       }
     } catch (e) {
       console.warn("⚠️ Error fetching EPFO news pool, using fallback:", e.message);
@@ -300,11 +310,13 @@ async function generateOmnichannelPost(genAI, targetPlatform = "all") {
 
   // Fallback if no pool item found
   if (!article) {
+    const history = getPostedHistory();
+    const evergreen = getNextUnpostedEvergreenTopic(history);
     article = {
-      title: "EPFO Scrutiny on Belated ECR Remittances & Sections 7Q & 14B Penal Damages",
-      description: "Critical employer compliance updates, statutory filing obligations, and workforce security norms.",
+      title: evergreen.title,
+      description: evergreen.description,
       link: profile.websiteUrl,
-      source: "Official Gazette / PIB",
+      source: evergreen.source,
       pubDate: new Date().toISOString()
     };
   }
@@ -351,46 +363,71 @@ Analyze this official regulatory news story:
 STRICT HIGH-ENGAGEMENT VIRAL RULES ACROSS ALL PLATFORMS:
 
 1. LINKEDIN (C-SUITE & HR THOUGHT LEADERSHIP MASTERCLASS — 350-500 WORDS OF HIGH DOMAIN INTELLIGENCE):
-   - Hook: High-impact opening line exposing an expensive regulatory exposure, costly compliance mistake, or financial risk for Indian businesses.
+   - Hook: High-impact opening line exposing an expensive regulatory exposure, costly compliance mistake, or strategic workforce impact for Indian businesses specifically regarding "${article.title}".
    - Executive Advisory Badge: '🏛️ [DAY ${dayNum} • STATUTORY COMPLIANCE ADVISORY] ${article.title}'
-   - Regulatory Framework: Governing Act & sections (Section 7A inquiry, Section 7Q @ 12% p.a. simple interest, Section 14B penal damages, Para 68).
-   - Operational Reality: Why portals error out, Annexure-K gets stuck, or ECR remittances fail.
-   - 4-Step Actionable Playbook for Leadership & HR Teams:
-     1️⃣ Pre-filing Wage & Contractor Reconciliation...
-     2️⃣ Digital Ledger & Joint Declaration Validation...
-     3️⃣ Statutory Dispute Mitigation & Escalation Protocol...
-     4️⃣ Proactive Filing Discipline to Avoid Compounding Penalties...
-   - Salaried Member Advisory: What employees must check in their Member Passbook / UAN profile.
-   - Lead Magnet / Comment-to-DM Trigger: 'Want our comprehensive EPFO Audit Checklist & Automated Penal Damages Calculator? Comment "${dmKwLinkedin}" below and our team will send the full resource directly to your message box.'
+   - Regulatory Framework: Cite the governing Act and specific provisions strictly applicable to this headline (e.g. relevant scheme sections, Paragraphs of EPF/EPS/EDLI schemes).
+   - Operational Reality: Why portal errors happen, reconciliation issues, or member claim rejections on this specific topic.
+   - 4-Step Strategic Actionable Playbook for Leadership & HR Teams (100% SPECIFIC TO "${article.title}"):
+     Craft 4 concrete, actionable, deeply practical steps strictly for this exact topic (e.g. member portal audits, documentation checklists, payroll updates, or employee advisory). ZERO generic copy-paste boilerplate!
+   - Salaried Member Advisory: What employees must check in their Member Passbook / UAN profile regarding this update.
+   - Lead Magnet / Comment-to-DM Trigger: 'Want our comprehensive EPFO Audit Checklist & Compliance Toolkit? Comment "${dmKwLinkedin}" below and our team will send the full resource directly to your message box.'
    - Live Verification Guide Link: '📌 Read the complete step-by-step statutory breakdown and access free calculators: ${resource.url}'
    - Strategic Hashtags: 5-6 professional B2B tags (#EPFO #LabourLaw #Compliance #HRLeadership #PayrollManagement #CorporateGovernance).
 
-2. TWITTER 5-PART THREAD (VIRAL REGULATORY ADVISORY THREAD — STRICT CHARACTER LIMITS):
-   - Tweet 1 (Hook + Link + Thread Indicator): [Official Alert] High-stakes headline hook, official alert context, link (${resource.url}), #EPFO #Compliance Thread 👇 (1/5). Strict limit: <= 270 chars.
-   - Tweet 2 (Statutory Problem & Financial Exposure): Governing Act/Sections (7Q, 14B, 7A, EPS-95), exact penal math and employer exposure. (2/5). Strict limit: <= 270 chars. No links.
-   - Tweet 3 (Practical Step-by-Step Resolution): Concrete operational steps for HR teams and salaried members (Joint Declaration, Annexure-K, ECR reconciliation, UAN seeding). (3/5). Strict limit: <= 270 chars. No links.
-   - Tweet 4 (Employer Risk Mitigation & Audit Defense): What CFOs and Trustees must audit monthly to avoid statutory scrutiny and show cause notices. (4/5). Strict limit: <= 270 chars. No links.
-   - Tweet 5 (Conclusion, Helpline & Free Tools CTA): Warning against third-party fraud/OTP sharing, link to free calculators (${resource.url}), #LabourLaw #HRTech #IndiaPayroll (5/5). Strict limit: <= 270 chars.
+2. TWITTER 5-PART THREAD (STRICT 100% HEADLINE-FOCUSED THREAD — ZERO OFF-TOPIC DRIFT):
+   CRITICAL MANDATE: Every single tweet in this 5-tweet thread MUST BE 100% EXCLUSIVELY about the exact headline topic: "${article.title}".
+   NEVER drift into generic boilerplate (NEVER mention unrelated Section 7A summons, 7Q/14B penal damages, contractor ledgers, or Joint Declarations unless the headline is specifically about them).
+
+   Follow this STRICT 5-TWEET PROGRESSION:
+   - Tweet 1 (Headline Hook & News Introduction — ZERO EXTERNAL LINKS):
+     Start with a compelling hook specifically introducing the headline topic. Explain what this update/news is.
+     End with: #EPFO #PFCompliance Thread 👇 (1/5)
+     STRICT LIMIT: <= 270 chars. STRICTLY NO URLS in Tweet 1 to protect algorithmic reach.
+
+   - Tweet 2 (Core Topic Explanation & All About The News):
+     Deep-dive strictly into this specific headline. Explain the background, what the new circular/announcement actually states, who is affected (salaried employees, retirees, or employers), and why this matters right now.
+     End with: (2/5)
+     STRICT LIMIT: <= 270 chars. No links.
+
+   - Tweet 3 (How-To / Step-by-Step Practical Implementation):
+     Provide actionable step-by-step guidance on how to implement or benefit from this exact topic. What exact forms, portal tabs, verification checks, or procedures must the member or HR follow?
+     End with: (3/5)
+     STRICT LIMIT: <= 270 chars. No links.
+
+   - Tweet 4 (Pros, Cons & Critical Caveats):
+     A realistic, objective breakdown of the Pros (key benefits/advantages) vs Cons (limitations, eligibility criteria, tax impact, or delay risks) strictly regarding this topic.
+     End with: (4/5)
+     STRICT LIMIT: <= 270 chars. No links.
+
+   - Tweet 5 (Conclusion, Website Attraction & Resource Link + Hashtags):
+     A punchy concluding takeaway on this topic + high-converting invitation to access free calculators & step-by-step guides on our website + exact link: "${resource.cta} ${resource.url}".
+     End with: targeted hashtags strictly related to this topic (5/5).
+     STRICT LIMIT: <= 270 chars.
 
 3. FACEBOOK (IN-DEPTH COMMUNITY & PAYROLL RESOURCE):
-   - Line 1: 'Comment "${dmKwFb}" below to receive our full step-by-step resolution checklist directly in your inbox!'
-   - Clear Plain-Language Breakdown: Explain the issue clearly so that both employees and business owners understand the real impact on their PF and pension.
-   - 3-4 Key Takeaways: Clear bullet points with emojis (📌, ⚖️, 💡, 🛡️).
-   - Step-by-step resolution guide for stuck cases.
+   - Line 1: '📢 Comment "${dmKwFb}" below to receive our full step-by-step resolution checklist directly in your inbox!'
+   - Executive Title: '🔔 [Day ${dayNum} Regulatory Advisory] ${article.title}'
+   - Clear Plain-Language Breakdown: Explain the issue clearly so that everyday employees and small business owners understand the real impact on their PF and pension.
+   - 4 Key Takeaways strictly tailored to this headline:
+     📌 What Changed: ...
+     ⚖️ Governing Rule / Legal Mandate: ...
+     💡 What Salaried Employees Must Do: ...
+     🛡️ What Employers & HR Must Do: ...
+   - Step-by-step practical implementation guide (3 clear bullet points).
    - Full Link: '👉 Read the complete guide & calculate your eligibility at: ${resource.url}'
    - Closing engagement question to spark shares and comments.
    - Hashtags: 4-5 relevant community tags.
 
 4. INSTAGRAM (VIRAL REEL/CAROUSEL FORMULA — HIGH SAVES & COMMENTS):
-   - LINE 1 MUST BE COMMENT-TO-DM TRIGGER: 'Comment "${dmKwInsta}" and I\\'ll DM you the official circular PDF & checklist 👇'
+   - LINE 1 MUST BE COMMENT-TO-DM TRIGGER: 'Comment "${dmKwInsta}" and I\'ll DM you the official circular PDF & checklist 👇'
    - LINE 2: Empty line.
-   - LINE 3: Scroll-stopping pattern interrupt hook: '${mythHook}'
-   - LINES 4-7: 3 numbered points using clean emojis (1️⃣, 2️⃣, 3️⃣) explaining the real statutory rule and math.
+   - LINE 3: Scroll-stopping pattern interrupt hook: Craft a dynamic, high-curiosity hook specifically about "${article.title}". Do NOT use generic or mismatched hooks. Expose the surprising rule, hidden catch, or big question people are asking.
+   - LINES 4-7: 3 numbered points using clean emojis (1️⃣, 2️⃣, 3️⃣) explaining the real statutory rule, what changed, and the exact action to take.
    - LINE 8: Series Anchor: 'This is Day ${dayNum} of ${series.seriesTitle}.'
-   - LINE 9: Discussion question: 'Did your employer deposit your PF correctly this month? Let\\'s discuss in the comments 👇'
+   - LINE 9: Discussion question tailored to this topic.
    - LINE 10: '📌 Save this post for your compliance records!'
    - LINE 11: '🔗 Complete guide: ${resource.url} (link in bio: ${profile.websiteUrl})'
-   - LINE 12: 5-8 targeted hashtags at the very bottom only.
+   - LINE 12: 5-8 targeted hashtags strictly matching this topic.
 
 Return ONLY a valid JSON object matching this schema:
 {
@@ -550,18 +587,18 @@ function buildTwitterThread(rawTwitter, article, meta, profile, resource) {
     list = [rawTwitter];
   }
 
-  // Ensure 5 distinct tweets: Problem Hook -> Legal Mechanics -> Operational Solution -> Employer Defense -> Conclusion + Resources
+  // Ensure 5 distinct tweets strictly following: Headline Hook -> Core News Breakdown -> Practical How-To -> Pros/Cons -> Conclusion + Website CTA
   if (list.length < 5) {
-    const kp0 = meta?.keyPoints?.[0]?.text || "Official regulatory notification released under statutory provisions.";
-    const kp1 = meta?.keyPoints?.[1]?.text || "Review payroll allocations to prevent filing discrepancies.";
-    const kp2 = meta?.keyPoints?.[2]?.text || "Ensure member records are updated to maintain compliance.";
+    const cleanTitle = (article.title || "Statutory EPFO Update").slice(0, 110);
+    const kp0 = meta?.keyPoints?.[0]?.text || "Official circular details approved statutory framework.";
+    const kp1 = meta?.keyPoints?.[1]?.text || "Review eligibility criteria and portal documentation.";
 
     list = [
-      `1/5 [Official Alert] ${article.title.slice(0, 110)}.\n\nMaster the governing statutory rules & employer liabilities.\n\nRead full breakdown: ${blogUrl}\n\n#EPFO #Compliance Thread 👇`,
-      `2/5 🔍 Statutory Mandate & Legal Exposure:\nGoverned under ${meta?.governanceTag || 'EPF & MP Act 1952'}. Belated remittances trigger Section 7Q penal interest (12% p.a.) & Section 14B damages (up to 25%), plus Section 7A inquiry summons.`,
-      `3/5 💡 Practical Operational Solutions:\n• ${kp0}\n• ${kp1}\n• Resolve pending Joint Declarations & Annexure-K mismatches to clear digital transfer blocks.`,
-      `4/5 ⚖️ HR & Employer Compliance Defense:\n• Reconcile contractor PF compliance monthly.\n• Resolve exit date mismatches before full-and-final settlement.\n• Never allow delayed remittances to compound.`,
-      `5/5 🛡️ Member Advisory & Free Resources:\nBeware of fraudulent agents; EPFO never asks for personal passwords or OTPs.\n\nAccess verified calculations & guides:\n👉 ${blogUrl}\n\n#LabourLaw #Payroll #HRIndia`
+      `1/5 [Official Alert] ${cleanTitle}.\n\nHere is everything you need to know about this major update: how it works, step-by-step practical implementation, pros & cons, and key takeaways.\n\n#EPFO #PFCompliance Thread 👇`,
+      `2/5 📌 What Is This Update About?\nDeep-dive into ${cleanTitle}:\n\n• Core Update: ${kp0}\n• Who It Affects: Applies to eligible employees, members, and covered establishments across India.`,
+      `3/5 🛠️ How-To: Step-by-Step Practical Implementation:\n1. Log in to your Unified Member / Employer Portal.\n2. Navigate to the online services tab & verify active KYC.\n3. ${kp1}\n4. Track claim or filing reference status online.`,
+      `4/5 ⚖️ Pros, Cons & Critical Caveats:\n✅ Pros: Faster processing, enhanced transparency & simplified options.\n⚠️ Watch out: Incomplete KYC, unlinked Aadhaar, or incorrect bank details can trigger delays. Review before submitting.`,
+      `5/5 🛡️ Conclusion & Helpful Resources:\nUnderstanding the exact fine print protects your retirement savings from unnecessary delays.\n\nCalculate eligibility & read our verified breakdown:\n👉 ${blogUrl}\n\n#LabourLaw #Payroll #FinanceIndia`
     ];
   }
 
