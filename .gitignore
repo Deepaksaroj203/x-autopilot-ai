@@ -1,4 +1,6 @@
 node_modules
+.env
+.env.local
 
 secrets.json
 SECRETS.js
@@ -7,6 +9,8 @@ SECRETS.js
 .twitter_user_data
 .linkedin_user_data
 .instagram_user_data
+.instagram_user_data_old
+.instagram_user_data_old/
 .facebook_user_data
 .youtube_user_data
 .youtube_user_data/
